@@ -1,8 +1,9 @@
 import Quickshell
 import QtQuick
 import qs
+import qs.bar.modules
 
-// One floating bar per screen.
+// One floating bar per screen: workspaces left, clock center, media and stats right.
 Variants {
     model: Quickshell.screens
 
@@ -31,17 +32,25 @@ Variants {
             border.width: Theme.borderWidth
             border.color: Theme.border
 
-            Text {
-                anchors.centerIn: parent
-                color: Theme.fg
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-                text: Qt.formatDateTime(clock.date, "ddd dd MMM  HH:mm")
+            Workspaces {
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                screenName: modelData.name
+            }
 
-                SystemClock {
-                    id: clock
-                    precision: SystemClock.Minutes
-                }
+            Clock {
+                anchors.centerIn: parent
+            }
+
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 18
+
+                Media {}
+                Stats {}
             }
         }
     }
