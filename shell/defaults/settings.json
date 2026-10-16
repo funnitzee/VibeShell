@@ -1,0 +1,15 @@
+{
+  "theme": {
+    "palette": "monochrome"
+  },
+  "font": {
+    "family": "JetBrainsMono Nerd Font",
+    "size": 13
+  },
+  "bar": {
+    "height": 34,
+    "gap": 8,
+    "radius": 10,
+    "borderWidth": 1
+  }
+}
