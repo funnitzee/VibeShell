@@ -1,0 +1,22 @@
+// Minimal niri config used only for the nested dev sandbox (see dev/run-nested.sh).
+input {
+    keyboard {
+        xkb {
+            layout "pl"
+        }
+    }
+}
+
+hotkey-overlay {
+    skip-at-startup
+}
+
+screenshot-path "@SB@/shot-%H%M%S.png"
+
+spawn-sh-at-startup "quickshell -p @REPO@/shell/shell.qml > @SB@/qs.log 2>&1"
+
+binds {
+    Mod+Shift+E { quit skip-confirmation=true; }
+    Mod+Return { spawn "kitty"; }
+    Mod+S { screenshot-screen; }
+}
