@@ -15,6 +15,8 @@
 #   3. creates ~/.config/vibeshell/settings.json if missing (never overwrites it)
 #   4. writes ~/.config/niri/vibeshell.kdl that starts the shell with niri
 #   5. with --niri: adds `include "vibeshell.kdl"` to your niri config.kdl
+#   6. with --apps: wires kitty/GTK include lines and VS Code/spicetify theme
+#      symlinks so external apps follow the VibeShell palette (backed up first)
 #
 # Every file it would overwrite is backed up first as <file>.bak.<timestamp>.
 
@@ -28,6 +30,7 @@ PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl)
 ASSUME_YES=0
 INSTALL_PACKAGES=1
 PATCH_NIRI=0
+PATCH_APPS=0
 
 usage() {
     cat <<'EOF'
@@ -36,6 +39,7 @@ Usage: install.sh [options]
   -y, --yes          do not ask for confirmation
       --no-packages  skip the pacman step
       --niri         add `include "vibeshell.kdl"` to your niri config.kdl (backed up first)
+      --apps         wire kitty/GTK includes + VS Code/spicetify theme symlinks (backed up first)
   -h, --help         show this help
 EOF
 }
@@ -64,11 +68,43 @@ backup() {
     log "Backed up $f -> $b"
 }
 
+# ensure_line <file> <line>: create <file> if needed and append <line> once,
+# backing the file up first when it already exists.
+ensure_line() {
+    local f=$1 line=$2
+    if [[ -e $f ]] && grep -qxF "$line" "$f"; then
+        log "$f already has the VibeShell line"
+        return 0
+    fi
+    mkdir -p "$(dirname "$f")"
+    [[ -e $f ]] && backup "$f"
+    printf '\n%s\n' "$line" >>"$f"
+    log "Added VibeShell line to $f"
+}
+
+# link_theme <link> <target>: point <link> at <target>, backing up any existing
+# entry first. Used for apps that cannot include a file at runtime.
+link_theme() {
+    local link=$1 target=$2
+    if [[ -L $link && "$(readlink "$link")" == "$target" ]]; then
+        log "$link already points at $target"
+        return 0
+    fi
+    if [[ -e $link || -L $link ]]; then
+        backup "$link"
+        rm -rf "$link"
+    fi
+    mkdir -p "$(dirname "$link")"
+    ln -s "$target" "$link"
+    log "Linked $link -> $target"
+}
+
 while (($#)); do
     case $1 in
     -y | --yes) ASSUME_YES=1 ;;
     --no-packages) INSTALL_PACKAGES=0 ;;
     --niri) PATCH_NIRI=1 ;;
+    --apps) PATCH_APPS=1 ;;
     -h | --help)
         usage
         exit 0
@@ -168,6 +204,49 @@ if ((PATCH_NIRI)); then
 else
     log "To start VibeShell with niri, add this line to $CFG (or re-run with --niri):"
     printf '    %s\n' "$INCLUDE"
+fi
+
+# 6. App theming: let external apps follow the VibeShell palette.
+# The shell writes theme files under ~/.config/vibeshell/app-themes/<app>/.
+# kitty and GTK get an include/import (live), VS Code and spicetify get a
+# symlink into their own config (they cannot include a file at runtime).
+THEME_DIR="$CONFIG_HOME/vibeshell/app-themes"
+if ((PATCH_APPS)); then
+    # kitty
+    if [[ -d $CONFIG_HOME/kitty || -f $CONFIG_HOME/kitty/kitty.conf ]]; then
+        ensure_line "$CONFIG_HOME/kitty/kitty.conf" "include $THEME_DIR/kitty/kitty-theme.conf"
+    else
+        warn "kitty config not found, skipping (run the shell once to generate themes)"
+    fi
+
+    # GTK 3 + GTK 4
+    for gtk in gtk-3.0 gtk-4.0; do
+        if [[ -d $CONFIG_HOME/$gtk ]]; then
+            ensure_line "$CONFIG_HOME/$gtk/gtk.css" "@import url(\"$THEME_DIR/gtk/gtk.css\");"
+        fi
+    done
+
+    # VS Code color theme extension
+    if [[ -d $HOME/.vscode ]]; then
+        link_theme "$HOME/.vscode/extensions/vibeshell-theme" "$THEME_DIR/vscode"
+    else
+        warn "VS Code (~/.vscode) not found, skipping"
+    fi
+
+    # spicetify
+    if [[ -d $CONFIG_HOME/spicetify ]]; then
+        link_theme "$CONFIG_HOME/spicetify/Themes/VibeShell" "$THEME_DIR/spicetify"
+        if command -v spicetify >/dev/null; then
+            spicetify config current_theme VibeShell >/dev/null 2>&1 && log "spicetify: current_theme -> VibeShell"
+            command -v spotify >/dev/null && spicetify apply >/dev/null 2>&1 && log "spicetify: applied"
+        fi
+    else
+        warn "spicetify config not found, skipping"
+    fi
+
+    log "App themes live in $THEME_DIR (regenerated on every palette change)."
+else
+    log "For external app theming (kitty/GTK/VS Code/spicetify), re-run with --apps."
 fi
 
 log "Done. To try it without restarting niri: quickshell -p $SRC/shell"
