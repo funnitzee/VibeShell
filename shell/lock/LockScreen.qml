@@ -26,19 +26,7 @@ Scope {
         function toggle(): void {
             Lock.locked ? Lock.unlock() : Lock.lock();
         }
-        function dbgState(): string {
-            return JSON.stringify({
-                locked: Lock.locked,
-                secure: sessionLock.secure,
-                authenticating: Lock.authenticating,
-                failed: Lock.failed,
-                message: Lock.message
-            });
-        }
-        function dbgLogin(pw: string): void {
-            Lock.password = pw;
-            Lock.submit();
-        }
+
     }
 
     SystemClock {
