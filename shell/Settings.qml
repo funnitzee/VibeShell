@@ -27,6 +27,42 @@ Singleton {
         return out;
     }
 
+    function get(obj, path) {
+        let o = obj;
+        for (const k of path.split(".")) {
+            if (o === null || typeof o !== "object" || !(k in o))
+                return undefined;
+            o = o[k];
+        }
+        return o;
+    }
+
+    // Sets a user setting by dotted path (e.g. "bar.gap") and saves it.
+    // Returns "" on success, otherwise a message describing what is wrong.
+    function set(path, value) {
+        const current = get(defaults, path);
+        if (current === undefined)
+            return `unknown setting: ${path}`;
+        if (typeof current === "object")
+            return `${path} is a section, set one of its keys`;
+        if (typeof current !== typeof value)
+            return `${path} expects a ${typeof current}`;
+
+        const next = JSON.parse(JSON.stringify(user));
+        const keys = path.split(".");
+        let o = next;
+        for (const k of keys.slice(0, -1)) {
+            if (o[k] === null || typeof o[k] !== "object")
+                o[k] = {};
+            o = o[k];
+        }
+        o[keys[keys.length - 1]] = value;
+
+        user = next;
+        userFile.setText(JSON.stringify(next, null, 2) + "\n");
+        return "";
+    }
+
     function parse(text) {
         try {
             return JSON.parse(text);
@@ -49,5 +85,6 @@ Singleton {
         onFileChanged: reload()
         onLoaded: root.user = root.parse(text())
         onLoadFailed: root.user = ({})
+        onSaveFailed: error => console.warn("VibeShell: could not save settings:", error)
     }
 }

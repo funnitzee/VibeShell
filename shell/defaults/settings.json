@@ -6,6 +6,9 @@
     "family": "JetBrainsMono Nerd Font",
     "size": 13
   },
+  "apps": {
+    "terminal": "kitty"
+  },
   "stats": {
     "interval": 2000
   },
