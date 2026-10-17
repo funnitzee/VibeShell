@@ -12,6 +12,10 @@
   "stats": {
     "interval": 2000
   },
+  "notify": {
+    "timeout": 5,
+    "max": 4
+  },
   "bar": {
     "height": 34,
     "gap": 8,

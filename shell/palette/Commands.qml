@@ -115,6 +115,17 @@ Singleton {
             }
         },
         {
+            name: "notify",
+            usage: "",
+            desc: "dismiss all notifications",
+            run: () => {
+                Notifications.clear();
+                return {
+                    close: true
+                };
+            }
+        },
+        {
             name: "theme",
             usage: "[name|next]",
             desc: "switch the color palette",

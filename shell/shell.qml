@@ -1,6 +1,7 @@
 import Quickshell
 import qs.bar
 import qs.dashboard
+import qs.notify
 import qs.osd
 import qs.palette
 import qs.quick
@@ -13,4 +14,5 @@ ShellRoot {
     Osd {}
     QuickSettings {}
     SettingsWindow {}
+    Notify {}
 }

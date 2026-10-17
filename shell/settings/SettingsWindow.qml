@@ -32,6 +32,14 @@ Scope {
                 step: 100,
                 min: 100
             },
+            "notify.timeout": {
+                step: 1,
+                min: 1
+            },
+            "notify.max": {
+                step: 1,
+                min: 1
+            },
             "bar.height": {
                 step: 1,
                 min: 10
