@@ -93,6 +93,17 @@ Singleton {
             }
         },
         {
+            name: "qs",
+            usage: "",
+            desc: "toggle the quick settings panel",
+            run: () => {
+                Ui.toggleQuick();
+                return {
+                    close: true
+                };
+            }
+        },
+        {
             name: "theme",
             usage: "[name|next]",
             desc: "switch the color palette",

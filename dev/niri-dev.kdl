@@ -20,5 +20,6 @@ binds {
     Mod+Return { spawn "kitty"; }
     Mod+Semicolon { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "palette" "toggle"; }
     Mod+P { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "dashboard" "toggle"; }
-    Mod+S { screenshot-screen; }
+    Mod+S { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "quick" "toggle"; }
+    Mod+Shift+S { screenshot-screen; }
 }

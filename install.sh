@@ -23,7 +23,7 @@ set -euo pipefail
 REPO_URL="https://github.com/funnitzee/VibeShell.git"
 PREFIX="${VIBESHELL_PREFIX:-$HOME/.local/share/vibeshell}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd)
+PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl)
 
 ASSUME_YES=0
 INSTALL_PACKAGES=1
@@ -135,6 +135,7 @@ spawn-at-startup "quickshell" "-p" "$SRC/shell"
 binds {
     Mod+Semicolon hotkey-overlay-title="VibeShell palette" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "palette" "toggle"; }
     Mod+P hotkey-overlay-title="VibeShell dashboard" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "dashboard" "toggle"; }
+    Mod+S hotkey-overlay-title="VibeShell quick settings" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "quick" "toggle"; }
     XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
     XF86AudioLowerVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
     XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
