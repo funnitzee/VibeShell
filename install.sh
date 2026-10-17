@@ -137,6 +137,7 @@ binds {
     Mod+P hotkey-overlay-title="VibeShell dashboard" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "dashboard" "toggle"; }
     Mod+S hotkey-overlay-title="VibeShell quick settings" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "quick" "toggle"; }
     Mod+Shift+S hotkey-overlay-title="VibeShell settings" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "settings" "toggle"; }
+    Mod+Alt+L hotkey-overlay-title="VibeShell lock" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "lock" "lock"; }
     XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
     XF86AudioLowerVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
     XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }

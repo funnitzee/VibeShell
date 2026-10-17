@@ -40,6 +40,14 @@ Scope {
                 step: 1,
                 min: 1
             },
+            "idle.lock": {
+                step: 30,
+                min: 0
+            },
+            "idle.screenOff": {
+                step: 30,
+                min: 0
+            },
             "bar.height": {
                 step: 1,
                 min: 10
@@ -177,7 +185,8 @@ Scope {
         id: win
 
         readonly property int cols: 58
-        readonly property int rows: 15
+        // Room for the header, every setting row and the hint line.
+        readonly property int rows: root.rowCount + 6
 
         visible: Ui.settingsOpen
         color: "transparent"
@@ -343,7 +352,7 @@ Scope {
 
             // Hint / last error.
             Txt {
-                y: 12 * Theme.cellH
+                y: (root.rowCount + 3) * Theme.cellH
                 color: root.status !== "" ? Theme.urgent : Theme.dim
                 text: root.status !== "" ? root.status : "j/k move   h/l change   enter edit   esc close"
             }

@@ -126,6 +126,17 @@ Singleton {
             }
         },
         {
+            name: "lock",
+            usage: "",
+            desc: "lock the screen",
+            run: () => {
+                Lock.lock();
+                return {
+                    close: true
+                };
+            }
+        },
+        {
             name: "theme",
             usage: "[name|next]",
             desc: "switch the color palette",

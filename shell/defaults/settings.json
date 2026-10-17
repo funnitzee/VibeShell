@@ -16,6 +16,13 @@
     "timeout": 5,
     "max": 4
   },
+  "lock": {
+    "service": "login"
+  },
+  "idle": {
+    "lock": 300,
+    "screenOff": 600
+  },
   "bar": {
     "height": 34,
     "gap": 8,
