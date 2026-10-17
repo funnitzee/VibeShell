@@ -18,5 +18,6 @@ spawn-sh-at-startup "quickshell -p @REPO@/shell/shell.qml > @SB@/qs.log 2>&1"
 binds {
     Mod+Shift+E { quit skip-confirmation=true; }
     Mod+Return { spawn "kitty"; }
+    Mod+Semicolon { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "palette" "toggle"; }
     Mod+S { screenshot-screen; }
 }

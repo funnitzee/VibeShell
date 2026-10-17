@@ -127,8 +127,16 @@ fi
 NIRI_DIR="$CONFIG_HOME/niri"
 SNIPPET="$NIRI_DIR/vibeshell.kdl"
 mkdir -p "$NIRI_DIR"
-SNIPPET_BODY="// Managed by the VibeShell installer: re-running it overwrites this file.
-spawn-at-startup \"quickshell\" \"-p\" \"$SRC/shell\""
+SNIPPET_BODY=$(
+    cat <<EOF
+// Managed by the VibeShell installer: re-running it overwrites this file.
+spawn-at-startup "quickshell" "-p" "$SRC/shell"
+
+binds {
+    Mod+Semicolon hotkey-overlay-title="VibeShell palette" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "palette" "toggle"; }
+}
+EOF
+)
 if [[ -f $SNIPPET ]] && [[ "$(cat "$SNIPPET")" == "$SNIPPET_BODY" ]]; then
     log "$SNIPPET is up to date"
 else
