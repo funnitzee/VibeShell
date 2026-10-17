@@ -4,7 +4,7 @@
 # Runs the shell in a nested niri window inside the same isolated sandbox as
 # dev/run-nested.sh, on a private D-Bus session so nothing from the real session
 # (media players, notifications) ends up in a public picture. The terminal shows
-# the README only. Old images are overwritten; git history keeps the old ones.
+# the README only; the second picture shows the command palette. Old images are overwritten; git history keeps the old ones.
 #
 # Usage: dev/screenshots.sh [DELAY_SECONDS]   (default 12)
 set -euo pipefail
@@ -40,12 +40,12 @@ layout {
     default-column-width { proportion 0.62; }
 }
 
-screenshot-path "$SB/raw.png"
+screenshot-path "$SB/shot-%H%M%S.png"
 
 spawn-sh-at-startup "quickshell -p $REPO/shell/shell.qml > $SB/qs.log 2>&1"
 spawn-sh-at-startup "sleep 2; cd $REPO && kitty --title VibeShell -o background=#0c0c0c -o background_opacity=1.0 -o foreground=#e8e8e8 -o font_size=11 sh -c 'head -n 26 README.md; sleep 120'"
 spawn-sh-at-startup "for d in 0.5 1.2 0.4 1.6 0.4 0.9; do for i in \$(seq \$(nproc)); do timeout \$d sh -c 'while :; do :; done' & done; wait; sleep \$d; done"
-spawn-sh-at-startup "sleep $DELAY; niri msg action screenshot-screen; sleep 1; niri msg action quit --skip-confirmation"
+spawn-sh-at-startup "sleep $DELAY; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call palette open :; sleep 2; niri msg action screenshot-screen; sleep 1; niri msg action quit --skip-confirmation"
 EOF
 
 export XDG_CONFIG_HOME=$SB/config
@@ -57,8 +57,10 @@ export VIBESHELL_CONFIG_DIR=$SB/config/vibeshell
 niri validate -c "$SB/niri.kdl" >/dev/null
 dbus-run-session -- niri -c "$SB/niri.kdl" >"$SB/niri.log" 2>&1 || true
 
-[[ -f $SB/raw.png ]] || {
-    echo "No screenshot was produced, see $SB/niri.log and $SB/qs.log" >&2
+# Shots are named by time, so sorting gives: 1) desktop, 2) palette.
+mapfile -t SHOTS < <(ls "$SB"/shot-*.png 2>/dev/null | sort)
+((${#SHOTS[@]} == 2)) || {
+    echo "Expected 2 screenshots, got ${#SHOTS[@]}, see $SB/niri.log and $SB/qs.log" >&2
     exit 1
 }
 
@@ -69,9 +71,10 @@ bar = json.load(open(sys.argv[1]))["bar"]
 print(bar["height"] + 2 * bar["gap"])
 PY
 )
-WIDTH=$(magick identify -format '%w' "$SB/raw.png")
+WIDTH=$(magick identify -format '%w' "${SHOTS[0]}")
 
-cp "$SB/raw.png" "$OUT/desktop.png"
-magick "$SB/raw.png" -crop "${WIDTH}x${BAR_H}+0+0" +repage -filter point -resize 200% "$OUT/bar.png"
+cp "${SHOTS[0]}" "$OUT/desktop.png"
+cp "${SHOTS[1]}" "$OUT/palette.png"
+magick "${SHOTS[0]}" -crop "${WIDTH}x${BAR_H}+0+0" +repage -filter point -resize 200% "$OUT/bar.png"
 
-echo "Wrote $OUT/desktop.png and $OUT/bar.png"
+echo "Wrote $OUT/desktop.png, $OUT/bar.png and $OUT/palette.png"
