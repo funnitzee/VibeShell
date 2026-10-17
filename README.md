@@ -151,4 +151,5 @@ docs/        Screenshots used in this README
 - [x] Settings window
 - [x] Notification daemon and popups
 - [x] Lock screen + idle
+- [x] Greeter
 - [ ] App theming (kitty, GTK, VS Code, ...)
