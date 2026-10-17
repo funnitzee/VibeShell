@@ -1,0 +1,9 @@
+{
+  "bg": "#1f1f28",
+  "surface": "#2a2a37",
+  "border": "#363646",
+  "fg": "#dcd7ba",
+  "dim": "#727169",
+  "accent": "#957fb8",
+  "urgent": "#e82424"
+}

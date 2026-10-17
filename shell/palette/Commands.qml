@@ -93,6 +93,32 @@ Singleton {
             }
         },
         {
+            name: "theme",
+            usage: "[name|next]",
+            desc: "switch the color palette",
+            run: args => {
+                const list = Theme.palettes;
+                if (args.length === 0)
+                    return {
+                        close: false,
+                        message: `palette: ${Settings.data.theme.palette}   try: ${list.join(" ")}`
+                    };
+                let name = args[0];
+                if (name === "next")
+                    name = list[(list.indexOf(Settings.data.theme.palette) + 1) % list.length];
+                if (!list.includes(name))
+                    return {
+                        close: false,
+                        message: `unknown palette: ${name}`
+                    };
+                const err = Settings.set("theme.palette", name);
+                return {
+                    close: false,
+                    message: err !== "" ? err : `theme.palette = ${name}`
+                };
+            }
+        },
+        {
             name: "term",
             usage: "",
             desc: "open a terminal",

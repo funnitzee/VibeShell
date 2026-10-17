@@ -20,6 +20,10 @@ Singleton {
     readonly property string fontFamily: Settings.data.font.family
     readonly property int fontSize: Settings.data.font.size
 
+    // Palettes shipped with the shell, for the :theme command. Any file in
+    // palette/ works too, via :set theme.palette <name>.
+    readonly property var palettes: ["monochrome", "catppuccin-mocha", "tokyo-night", "rose-pine", "nord", "dracula", "kanagawa"]
+
     // Size of one character cell of the UI font. TUI-style components snap to it.
     readonly property real cellW: metrics.advanceWidth("M")
     readonly property real cellH: metrics.height
