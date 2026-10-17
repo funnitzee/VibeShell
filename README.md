@@ -70,6 +70,7 @@ Press `Mod+;` (bound by the installer's niri snippet). Type to search applicatio
 | `:qs` | open the quick settings panel |
 | `:settings` | open the settings window |
 | `:notify` | dismiss all notifications |
+| `:lock` | lock the screen |
 | `:theme [name\|next]` | switch colour palette (`next` cycles) |
 
 `Enter` runs, `Tab` completes, `Up`/`Down` (or `Ctrl+P`/`Ctrl+N`) move, `Esc` closes.
