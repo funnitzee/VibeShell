@@ -6,16 +6,19 @@
 # (media players, notifications) ends up in a public picture. The terminal shows
 # the README only. Old images are overwritten; git history keeps the old ones.
 #
-# Usage: dev/screenshots.sh [DELAY_SECONDS]   (default 8)
+# Usage: dev/screenshots.sh [DELAY_SECONDS]   (default 12)
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 SB=${VIBESHELL_SANDBOX:-/tmp/vibeshell-shots}
-DELAY=${1:-8}
+DELAY=${1:-12}
 OUT="$REPO/docs/screenshots"
 
 rm -rf "$SB"
 mkdir -p "$SB"/{config/vibeshell,cache,state,data} "$OUT"
+
+# Sample stats quickly so the sparklines are full by the time we take the picture.
+echo '{ "stats": { "interval": 400 } }' >"$SB/config/vibeshell/settings.json"
 
 cat >"$SB/niri.kdl" <<EOF
 hotkey-overlay {
@@ -41,6 +44,7 @@ screenshot-path "$SB/raw.png"
 
 spawn-sh-at-startup "quickshell -p $REPO/shell/shell.qml > $SB/qs.log 2>&1"
 spawn-sh-at-startup "sleep 2; cd $REPO && kitty --title VibeShell -o background=#0c0c0c -o background_opacity=1.0 -o foreground=#e8e8e8 -o font_size=11 sh -c 'head -n 26 README.md; sleep 120'"
+spawn-sh-at-startup "for d in 0.5 1.2 0.4 1.6 0.4 0.9; do for i in \$(seq \$(nproc)); do timeout \$d sh -c 'while :; do :; done' & done; wait; sleep \$d; done"
 spawn-sh-at-startup "sleep $DELAY; niri msg action screenshot-screen; sleep 1; niri msg action quit --skip-confirmation"
 EOF
 
