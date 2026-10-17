@@ -9,6 +9,12 @@
   "apps": {
     "terminal": "kitty"
   },
+  "theming": {
+    "kitty": true,
+    "gtk": true,
+    "vscode": true,
+    "spicetify": true
+  },
   "stats": {
     "interval": 2000
   },

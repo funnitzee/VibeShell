@@ -137,6 +137,18 @@ Singleton {
             }
         },
         {
+            name: "theming",
+            usage: "",
+            desc: "regenerate app theme files",
+            run: () => {
+                AppTheming.regenerate();
+                return {
+                    close: true,
+                    message: `app themes -> ${AppTheming.outDir}`
+                };
+            }
+        },
+        {
             name: "theme",
             usage: "[name|next]",
             desc: "switch the color palette",
