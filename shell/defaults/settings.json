@@ -6,6 +6,9 @@
     "family": "JetBrainsMono Nerd Font",
     "size": 13
   },
+  "stats": {
+    "interval": 2000
+  },
   "bar": {
     "height": 34,
     "gap": 8,

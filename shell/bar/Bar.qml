@@ -2,6 +2,7 @@ import Quickshell
 import QtQuick
 import qs
 import qs.bar.modules
+import qs.components
 
 // One floating bar per screen: workspaces left, clock center, media and stats right.
 Variants {
@@ -47,9 +48,16 @@ Variants {
                 anchors.right: parent.right
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 18
+                spacing: Theme.cellW * 2
 
-                Media {}
+                Media {
+                    id: media
+                }
+                Txt {
+                    visible: media.visible
+                    text: "│"
+                    color: Theme.border
+                }
                 Stats {}
             }
         }

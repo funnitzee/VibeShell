@@ -3,6 +3,7 @@ pragma Singleton
 import Quickshell
 import Quickshell.Io
 import QtQuick
+import qs
 
 // CPU and memory usage, polled from /proc.
 Singleton {
@@ -10,6 +11,15 @@ Singleton {
 
     property int cpu: 0
     property int mem: 0
+
+    // Last samples (percent), oldest first, for sparklines.
+    readonly property int historyLength: 12
+    property var cpuHistory: Array(historyLength).fill(0)
+    property var memHistory: Array(historyLength).fill(0)
+
+    function push(list, v) {
+        return list.slice(1).concat([v]);
+    }
 
     property real _lastTotal: 0
     property real _lastIdle: 0
@@ -27,6 +37,7 @@ Singleton {
                 root.cpu = Math.round(100 * (1 - (idle - root._lastIdle) / dt));
             root._lastTotal = total;
             root._lastIdle = idle;
+            root.cpuHistory = root.push(root.cpuHistory, root.cpu);
         }
     }
 
@@ -38,11 +49,12 @@ Singleton {
             const total = Number(t.match(/MemTotal:\s+(\d+)/)[1]);
             const avail = Number(t.match(/MemAvailable:\s+(\d+)/)[1]);
             root.mem = Math.round(100 * (1 - avail / total));
+            root.memHistory = root.push(root.memHistory, root.mem);
         }
     }
 
     Timer {
-        interval: 2000
+        interval: Settings.data.stats.interval
         running: true
         repeat: true
         triggeredOnStart: true

@@ -3,15 +3,37 @@ import qs
 import qs.components
 import qs.services
 
+// cpu ▁▂▃▅▇ 12%   mem [███░░░░░] 35%
 Row {
-    spacing: 14
+    spacing: Theme.cellW * 2
 
-    Txt {
-        text: `cpu ${Stats.cpu}%`
-        color: Theme.dim
+    Row {
+        spacing: Theme.cellW
+
+        Txt {
+            text: "cpu"
+            color: Theme.dim
+        }
+        Spark {
+            values: Stats.cpuHistory
+        }
+        Txt {
+            text: `${Stats.cpu}%`.padStart(4)
+        }
     }
-    Txt {
-        text: `mem ${Stats.mem}%`
-        color: Theme.dim
+
+    Row {
+        spacing: Theme.cellW
+
+        Txt {
+            text: "mem"
+            color: Theme.dim
+        }
+        Gauge {
+            value: Stats.mem
+        }
+        Txt {
+            text: `${Stats.mem}%`.padStart(4)
+        }
     }
 }
