@@ -114,6 +114,11 @@ Scope {
             return;
         }
 
+        if (row.type === "boolean") {
+            commit(row.path, !valueOf(row));
+            return;
+        }
+
         if (row.type !== "number")
             return;
         const spec = root.numberSpec[row.path] ?? {
@@ -128,6 +133,11 @@ Scope {
         const row = root.current;
         if (row === null || row.path === "theme.palette")
             return; // palettes are cycled, not typed
+        if (row.type === "boolean") {
+            // Booleans have no free text, so Enter just toggles them.
+            commit(row.path, !valueOf(row));
+            return;
+        }
         editor.text = display(row);
         root.editing = true;
         editor.forceActiveFocus();
