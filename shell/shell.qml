@@ -7,6 +7,7 @@ import qs.osd
 import qs.palette
 import qs.quick
 import qs.services
+import qs.greeter
 import qs.settings
 
 ShellRoot {
@@ -21,4 +22,5 @@ ShellRoot {
     SettingsWindow {}
     Notify {}
     LockScreen {}
+    Greeter {}
 }

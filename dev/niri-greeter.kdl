@@ -1,0 +1,14 @@
+// Niri config for testing greeter in sandbox
+input {
+    keyboard {
+        xkb {
+            layout "pl"
+        }
+    }
+}
+
+hotkey-overlay {
+    skip-at-startup
+}
+
+spawn-sh-at-startup "quickshell -p @REPO@/shell/shell.qml > @SB@/qs.log 2>&1"
