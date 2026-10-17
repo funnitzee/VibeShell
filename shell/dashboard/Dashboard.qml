@@ -218,6 +218,36 @@ Scope {
                     }
                 }
 
+                Row {
+                    spacing: 0
+                    Txt {
+                        color: Theme.dim
+                        text: "net  "
+                    }
+                    Txt {
+                        width: 24 * Theme.cellW
+                        elide: Text.ElideRight
+                        text: Net.info ? `${Net.info.kind} ${Net.info.name}` : "-"
+                    }
+                }
+
+                Row {
+                    visible: Audio.available
+                    spacing: 0
+                    Txt {
+                        color: Theme.dim
+                        text: "vol  "
+                    }
+                    Gauge {
+                        visible: !Audio.muted
+                        size: 6
+                        value: Audio.percent
+                    }
+                    Txt {
+                        text: Audio.muted ? "muted" : ` ${Audio.percent}%`
+                    }
+                }
+
                 Item {
                     width: 1
                     height: 2 * Theme.cellH
