@@ -20,10 +20,20 @@ Singleton {
     readonly property string fontFamily: Settings.data.font.family
     readonly property int fontSize: Settings.data.font.size
 
+    // Size of one character cell of the UI font. TUI-style components snap to it.
+    readonly property real cellW: metrics.advanceWidth("M")
+    readonly property real cellH: metrics.height
+
     readonly property int barHeight: Settings.data.bar.height
     readonly property int gap: Settings.data.bar.gap
     readonly property int radius: Settings.data.bar.radius
     readonly property int borderWidth: Settings.data.bar.borderWidth
+
+    FontMetrics {
+        id: metrics
+        font.family: root.fontFamily
+        font.pixelSize: root.fontSize
+    }
 
     function apply(p) {
         for (const k of ["bg", "surface", "border", "fg", "dim", "accent", "urgent"])
