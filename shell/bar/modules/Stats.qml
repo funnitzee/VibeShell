@@ -3,7 +3,7 @@ import qs
 import qs.components
 import qs.services
 
-// cpu ▁▂▃▅▇ 12%   mem [███░░░░░] 35%
+// cpu ▁▂▃▅▇ 12%   mem [███░░░] 35%   bat 82%+
 Row {
     spacing: Theme.cellW * 2
 
@@ -15,7 +15,7 @@ Row {
             color: Theme.dim
         }
         Spark {
-            values: Stats.cpuHistory
+            values: Stats.cpuHistory.slice(-8)
         }
         Txt {
             text: `${Stats.cpu}%`.padStart(4)
@@ -30,10 +30,26 @@ Row {
             color: Theme.dim
         }
         Gauge {
+            size: 6
             value: Stats.mem
         }
         Txt {
             text: `${Stats.mem}%`.padStart(4)
+        }
+    }
+
+    Row {
+        visible: Power.present
+        spacing: Theme.cellW
+
+        Txt {
+            text: "bat"
+            color: Theme.dim
+        }
+        Txt {
+            text: `${Power.percent}%` + (Power.charging ? "+" : "")
+            color: !Power.charging && Power.percent <= 15 ? Theme.accent : Theme.fg
+            font.bold: !Power.charging && Power.percent <= 15
         }
     }
 }

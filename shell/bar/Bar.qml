@@ -4,7 +4,7 @@ import qs
 import qs.bar.modules
 import qs.components
 
-// One floating bar per screen: workspaces left, clock center, media and stats right.
+// One floating bar per screen: workspaces and media left, clock center (click: dashboard), stats right.
 Variants {
     model: Quickshell.screens
 
@@ -34,13 +34,22 @@ Variants {
             border.color: Theme.border
 
             Workspaces {
+                id: workspaces
                 anchors.left: parent.left
                 anchors.leftMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 screenName: modelData.name
             }
 
+            Media {
+                anchors.left: workspaces.right
+                anchors.leftMargin: Theme.cellW * 2
+                anchors.verticalCenter: parent.verticalCenter
+                maxWidth: clock.x - x - Theme.cellW * 3
+            }
+
             Clock {
+                id: clock
                 anchors.centerIn: parent
             }
 
@@ -50,14 +59,6 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.cellW * 2
 
-                Media {
-                    id: media
-                }
-                Txt {
-                    visible: media.visible
-                    text: "│"
-                    color: Theme.border
-                }
                 Stats {}
             }
         }

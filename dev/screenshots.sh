@@ -4,7 +4,8 @@
 # Runs the shell in a nested niri window inside the same isolated sandbox as
 # dev/run-nested.sh, on a private D-Bus session so nothing from the real session
 # (media players, notifications) ends up in a public picture. The terminal shows
-# the README only; the second picture shows the command palette. Old images are overwritten; git history keeps the old ones.
+# the README only; the second picture shows the command palette. A fake MPRIS player
+# (dev/mock-player.py) provides something to show in the media widgets. Old images are overwritten; git history keeps the old ones.
 #
 # Usage: dev/screenshots.sh [DELAY_SECONDS]   (default 12)
 set -euo pipefail
@@ -42,6 +43,7 @@ layout {
 
 screenshot-path "$SB/shot-%H%M%S.png"
 
+spawn-sh-at-startup "python3 -I $REPO/dev/mock-player.py > $SB/mock-player.log 2>&1"
 spawn-sh-at-startup "quickshell -p $REPO/shell/shell.qml > $SB/qs.log 2>&1"
 spawn-sh-at-startup "sleep 2; cd $REPO && kitty --title VibeShell -o background=#0c0c0c -o background_opacity=1.0 -o foreground=#e8e8e8 -o font_size=11 sh -c 'head -n 26 README.md; sleep 120'"
 spawn-sh-at-startup "for d in 0.5 1.2 0.4 1.6 0.4 0.9; do for i in \$(seq \$(nproc)); do timeout \$d sh -c 'while :; do :; done' & done; wait; sleep \$d; done"

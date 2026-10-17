@@ -13,6 +13,8 @@ Item {
     property string title: ""
     // Frame rows (0 = top border) that get a horizontal divider.
     property var dividers: []
+    // Frame cols (0 = left border) that get a vertical divider.
+    property var vDividers: []
     property color color: Theme.border
     property color background: Theme.bg
 
@@ -46,6 +48,24 @@ Item {
             height: 1
             color: root.color
         }
+    }
+
+    Repeater {
+        model: root.vDividers
+        delegate: Rectangle {
+            required property int modelData
+            x: Math.round(modelData * Theme.cellW + Theme.cellW / 2)
+            y: Math.round(Theme.cellH / 2)
+            width: 1
+            height: Math.round((root.rows - 1) * Theme.cellH)
+            color: root.color
+        }
+    }
+
+    // Absorbs clicks so that click-outside handlers behind the frame never fire
+    // on the frame itself. Interactive children are stacked above this.
+    MouseArea {
+        anchors.fill: parent
     }
 
     // Title: a background-colored patch interrupts the top line.

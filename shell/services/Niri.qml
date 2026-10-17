@@ -10,9 +10,15 @@ Singleton {
     id: root
 
     property var workspaces: []
+    property string windowTitle: ""
 
     function focusWorkspace(idx) {
         Quickshell.execDetached(["niri", "msg", "action", "focus-workspace", String(idx)]);
+    }
+
+    function refreshWindowTitle() {
+        if (!focusedQuery.running)
+            focusedQuery.running = true;
     }
 
     property bool _pending: false
@@ -32,6 +38,8 @@ Singleton {
             onRead: data => {
                 if (data.startsWith("{\"Workspace"))
                     root.refresh();
+                else if (data.includes("WindowFocusChanged"))
+                    root.refreshWindowTitle();
             }
         }
         // niri restarted or not running yet: try again shortly.
@@ -60,6 +68,21 @@ Singleton {
             if (root._pending) {
                 root._pending = false;
                 running = true;
+            }
+        }
+    }
+
+    Process {
+        id: focusedQuery
+        command: ["niri", "msg", "--json", "focused-window"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const w = JSON.parse(text);
+                    root.windowTitle = w && w.title ? w.title : "";
+                } catch (e) {
+                    root.windowTitle = "";
+                }
             }
         }
     }

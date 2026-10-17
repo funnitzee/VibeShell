@@ -82,6 +82,17 @@ Singleton {
             }
         },
         {
+            name: "dash",
+            usage: "",
+            desc: "toggle the dashboard",
+            run: () => {
+                Ui.toggle();
+                return {
+                    close: true
+                };
+            }
+        },
+        {
             name: "term",
             usage: "",
             desc: "open a terminal",
