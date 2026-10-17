@@ -21,5 +21,6 @@ binds {
     Mod+Semicolon { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "palette" "toggle"; }
     Mod+P { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "dashboard" "toggle"; }
     Mod+S { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "quick" "toggle"; }
-    Mod+Shift+S { screenshot-screen; }
+    Mod+Shift+S { spawn "quickshell" "ipc" "-p" "@REPO@/shell/shell.qml" "call" "settings" "toggle"; }
+    Print { screenshot-screen; }
 }

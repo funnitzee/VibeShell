@@ -104,6 +104,17 @@ Singleton {
             }
         },
         {
+            name: "settings",
+            usage: "",
+            desc: "toggle the settings window",
+            run: () => {
+                Ui.toggleSettings();
+                return {
+                    close: true
+                };
+            }
+        },
+        {
             name: "theme",
             usage: "[name|next]",
             desc: "switch the color palette",

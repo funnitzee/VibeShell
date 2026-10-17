@@ -6,8 +6,9 @@
 # (media players, notifications) ends up in a public picture. The terminal shows
 # the README only; the second picture shows the command palette; the third the
 # dashboard (`call dashboard open`); the fourth the quick settings (`call quick
-# open`). A fake MPRIS player
-# (dev/mock-player.py) provides something to show in the media widgets. Old images are overwritten; git history keeps the old ones.
+# open`); the fifth the settings window (`call settings open`). A fake MPRIS
+# player (dev/mock-player.py) provides something to show in the media widgets.
+# Old images are overwritten; git history keeps the old ones.
 #
 # Usage: dev/screenshots.sh [DELAY_SECONDS]   (default 12)
 set -euo pipefail
@@ -62,7 +63,7 @@ spawn-sh-at-startup "python3 -I $REPO/dev/mock-player.py > $SB/mock-player.log 2
 spawn-sh-at-startup "quickshell -p $REPO/shell/shell.qml > $SB/qs.log 2>&1"
 spawn-sh-at-startup "sleep 2; cd $REPO && kitty --title VibeShell -o background=#0c0c0c -o background_opacity=1.0 -o foreground=#e8e8e8 -o font_size=11 sh -c 'head -n 26 README.md; sleep 120'"
 spawn-sh-at-startup "for d in 0.5 1.2 0.4 1.6 0.4 0.9; do for i in \$(seq \$(nproc)); do timeout \$d sh -c 'while :; do :; done' & done; wait; sleep \$d; done"
-spawn-sh-at-startup "sleep $DELAY; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call palette open :; sleep 2; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call palette hide; quickshell ipc -p $REPO/shell/shell.qml call dashboard open; sleep 2; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call dashboard hide; quickshell ipc -p $REPO/shell/shell.qml call quick open; sleep 3; niri msg action screenshot-screen; sleep 1; niri msg action quit --skip-confirmation"
+spawn-sh-at-startup "sleep $DELAY; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call palette open :; sleep 2; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call palette hide; quickshell ipc -p $REPO/shell/shell.qml call dashboard open; sleep 2; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call dashboard hide; quickshell ipc -p $REPO/shell/shell.qml call quick open; sleep 3; niri msg action screenshot-screen; sleep 1; quickshell ipc -p $REPO/shell/shell.qml call quick hide; quickshell ipc -p $REPO/shell/shell.qml call settings open; sleep 2; niri msg action screenshot-screen; sleep 1; niri msg action quit --skip-confirmation"
 EOF
 
 export XDG_CONFIG_HOME=$SB/config
@@ -75,10 +76,10 @@ export PATH="$SB/bin:$PATH"
 niri validate -c "$SB/niri.kdl" >/dev/null
 dbus-run-session -- niri -c "$SB/niri.kdl" >"$SB/niri.log" 2>&1 || true
 
-# Shots are named by time, so sorting gives: 1) desktop, 2) palette, 3) dashboard, 4) quick settings.
+# Shots are named by time, so sorting gives: 1) desktop, 2) palette, 3) dashboard, 4) quick settings, 5) settings.
 mapfile -t SHOTS < <(ls "$SB"/shot-*.png 2>/dev/null | sort)
-((${#SHOTS[@]} == 4)) || {
-    echo "Expected 4 screenshots, got ${#SHOTS[@]}, see $SB/niri.log and $SB/qs.log" >&2
+((${#SHOTS[@]} == 5)) || {
+    echo "Expected 5 screenshots, got ${#SHOTS[@]}, see $SB/niri.log and $SB/qs.log" >&2
     exit 1
 }
 
@@ -95,6 +96,7 @@ cp "${SHOTS[0]}" "$OUT/desktop.png"
 cp "${SHOTS[1]}" "$OUT/palette.png"
 cp "${SHOTS[2]}" "$OUT/dashboard.png"
 cp "${SHOTS[3]}" "$OUT/quick.png"
+cp "${SHOTS[4]}" "$OUT/settings.png"
 magick "${SHOTS[0]}" -crop "${WIDTH}x${BAR_H}+0+0" +repage -filter point -resize 200% "$OUT/bar.png"
 
-echo "Wrote $OUT/desktop.png, $OUT/bar.png, $OUT/palette.png, $OUT/dashboard.png and $OUT/quick.png"
+echo "Wrote $OUT/desktop.png, $OUT/bar.png, $OUT/palette.png, $OUT/dashboard.png, $OUT/quick.png and $OUT/settings.png"
