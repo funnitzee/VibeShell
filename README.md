@@ -150,5 +150,5 @@ docs/        Screenshots used in this README
 - [x] Quick settings panel: volume, Wi-Fi, Bluetooth, brightness
 - [x] Settings window
 - [x] Notification daemon and popups
-- [ ] Launcher, lock screen, greeter
+- [x] Lock screen + idle
 - [ ] App theming (kitty, GTK, VS Code, ...)
