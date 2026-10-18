@@ -25,12 +25,15 @@ set -euo pipefail
 REPO_URL="https://github.com/funnitzee/VibeShell.git"
 PREFIX="${VIBESHELL_PREFIX:-$HOME/.local/share/vibeshell}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl)
+PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl kitty swaybg)
 
 ASSUME_YES=0
 INSTALL_PACKAGES=1
 PATCH_NIRI=0
 PATCH_APPS=0
+INSTALL_SDDM=0
+SUPER_TAP=0
+STRIP_PLYMOUTH=0
 
 usage() {
     cat <<'EOF'
@@ -40,6 +43,9 @@ Usage: install.sh [options]
       --no-packages  skip the pacman step
       --niri         add `include "vibeshell.kdl"` to your niri config.kdl (backed up first)
       --apps         wire kitty/GTK includes + VS Code/spicetify theme symlinks (backed up first)
+      --sddm         install the VibeShell SDDM theme and select it (backed up first, needs sudo)
+      --super-tap    make a lone Super key open the palette (installs keyd, backed up first)
+      --no-plymouth  remove plymouth and the silent boot (quiet/splash) from the kernel cmdline
   -h, --help         show this help
 EOF
 }
@@ -105,6 +111,9 @@ while (($#)); do
     --no-packages) INSTALL_PACKAGES=0 ;;
     --niri) PATCH_NIRI=1 ;;
     --apps) PATCH_APPS=1 ;;
+    --sddm) INSTALL_SDDM=1 ;;
+    --super-tap) SUPER_TAP=1 ;;
+    --no-plymouth) STRIP_PLYMOUTH=1 ;;
     -h | --help)
         usage
         exit 0
@@ -169,14 +178,40 @@ SNIPPET_BODY=$(
 spawn-at-startup "quickshell" "-p" "$SRC/shell"
 
 binds {
-    Mod+Semicolon hotkey-overlay-title="VibeShell palette" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "palette" "toggle"; }
-    Mod+P hotkey-overlay-title="VibeShell dashboard" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "dashboard" "toggle"; }
-    Mod+S hotkey-overlay-title="VibeShell quick settings" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "quick" "toggle"; }
-    Mod+Shift+S hotkey-overlay-title="VibeShell settings" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "settings" "toggle"; }
-    Mod+Alt+L hotkey-overlay-title="VibeShell lock" { spawn "quickshell" "ipc" "-p" "$SRC/shell" "call" "lock" "lock"; }
-    XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
-    XF86AudioLowerVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
-    XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+EOF
+    # Only add a bind when the same key is not already bound elsewhere in the
+    # niri config (dms, config.kdl...): niri refuses to load a config with
+    # duplicate keybinds, so adding ours blindly would break the session.
+    bind_taken() {
+        local key=$1 f esc
+        esc=${key//+/\\+}
+        while IFS= read -r f; do
+            [[ $f == "$SNIPPET" ]] && continue
+            grep -qE "^[[:space:]]*${esc}([[:space:]]|\{)" "$f" && return 0
+        done < <(find "$NIRI_DIR" -type f -name '*.kdl' 2>/dev/null)
+        return 1
+    }
+    add_bind() {
+        local key=$1 rest=$2
+        if bind_taken "$key"; then
+            warn "Skipping $key in vibeshell.kdl: already bound elsewhere in $NIRI_DIR"
+        else
+            printf '    %s %s\n' "$key" "$rest"
+        fi
+    }
+    ipc='spawn "quickshell" "ipc" "-p" "'"$SRC"'/shell" "call"'
+    add_bind "Mod+Semicolon" "hotkey-overlay-title=\"VibeShell palette\" { $ipc \"palette\" \"toggle\"; }"
+    # A lone Super key (keyd, see --super-tap) sends F15 and opens the palette.
+    add_bind "F15" "hotkey-overlay-title=\"VibeShell palette\" { $ipc \"palette\" \"toggle\"; }"
+    add_bind "Mod+P" "hotkey-overlay-title=\"VibeShell dashboard\" { $ipc \"dashboard\" \"toggle\"; }"
+    add_bind "Mod+S" "hotkey-overlay-title=\"VibeShell quick settings\" { $ipc \"quick\" \"toggle\"; }"
+    add_bind "Mod+Shift+S" "hotkey-overlay-title=\"VibeShell settings\" { $ipc \"settings\" \"toggle\"; }"
+    add_bind "Mod+Alt+L" "hotkey-overlay-title=\"VibeShell lock\" { $ipc \"lock\" \"lock\"; }"
+    add_bind "Mod+Return" 'hotkey-overlay-title="Terminal" { spawn "kitty"; }'
+    add_bind "XF86AudioRaiseVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }'
+    add_bind "XF86AudioLowerVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }'
+    add_bind "XF86AudioMute" 'allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }'
+    cat <<EOF
 }
 EOF
 )
@@ -213,10 +248,10 @@ fi
 THEME_DIR="$CONFIG_HOME/vibeshell/app-themes"
 if ((PATCH_APPS)); then
     # kitty
-    if [[ -d $CONFIG_HOME/kitty || -f $CONFIG_HOME/kitty/kitty.conf ]]; then
+    if command -v kitty >/dev/null || [[ -d $CONFIG_HOME/kitty ]]; then
         ensure_line "$CONFIG_HOME/kitty/kitty.conf" "include $THEME_DIR/kitty/kitty-theme.conf"
     else
-        warn "kitty config not found, skipping (run the shell once to generate themes)"
+        warn "kitty not found, skipping (install kitty, then re-run with --apps)"
     fi
 
     # GTK 3 + GTK 4
@@ -247,6 +282,134 @@ if ((PATCH_APPS)); then
     log "App themes live in $THEME_DIR (regenerated on every palette change)."
 else
     log "For external app theming (kitty/GTK/VS Code/spicetify), re-run with --apps."
+fi
+
+# 7. SDDM theme. Copies sddm/vibeshell to /usr/share/sddm/themes/vibeshell,
+# colours it from the active palette and selects it in /etc/sddm.conf.d.
+if ((INSTALL_SDDM)); then
+    if [[ ! -d /usr/share/sddm ]]; then
+        warn "SDDM not installed, skipping the theme."
+    elif confirm "Install the VibeShell SDDM theme and set it as default?"; then
+        # Active palette: name from settings.json, colours from palettes/<name>.json.
+        pal=$(grep -o '"palette": *"[^"]*"' "$CONFIG_HOME/vibeshell/settings.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+        pal=${pal:-monochrome}
+        pal_file="$SRC/shell/palettes/$pal.json"
+        json_get() { grep -o "\"$2\": *\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"\(#[0-9a-fA-F]*\)".*/\1/'; }
+        if [[ -f $pal_file ]]; then
+            c_bg=$(json_get "$pal_file" bg)
+            c_fg=$(json_get "$pal_file" fg)
+            c_dim=$(json_get "$pal_file" dim)
+            c_border=$(json_get "$pal_file" border)
+            c_accent=$(json_get "$pal_file" accent)
+            c_urgent=$(json_get "$pal_file" urgent)
+        fi
+
+        theme_tmp=$(mktemp -d)
+        cp -r "$SRC/sddm/vibeshell/." "$theme_tmp/"
+        # Prefer the live theme.conf the shell generates (matches the palette,
+        # including custom palettes); fall back to the JSON above.
+        if [[ -f $THEME_DIR/sddm/theme.conf ]]; then
+            cp "$THEME_DIR/sddm/theme.conf" "$theme_tmp/theme.conf"
+        else
+            cat >"$theme_tmp/theme.conf" <<EOF
+[General]
+bg=${c_bg:-#0a0a0a}
+fg=${c_fg:-#e8e8e8}
+dim=${c_dim:-#8a8a8a}
+border=${c_border:-#2e2e2e}
+accent=${c_accent:-#ffffff}
+urgent=${c_urgent:-#ffffff}
+font=JetBrainsMono Nerd Font
+EOF
+        fi
+
+        dest=/usr/share/sddm/themes/vibeshell
+        if [[ -e $dest ]]; then
+            sudo cp -a "$dest" "$dest.bak.$(date +%Y%m%d-%H%M%S)"
+        fi
+        sudo mkdir -p "$dest"
+        sudo cp -a "$theme_tmp/." "$dest/"
+        rm -rf "$theme_tmp"
+
+        conf=/etc/sddm.conf.d/vibeshell.conf
+        sudo mkdir -p /etc/sddm.conf.d
+        if [[ -e $conf ]]; then
+            sudo cp -a "$conf" "$conf.bak.$(date +%Y%m%d-%H%M%S)"
+        fi
+        printf '[Theme]\nCurrent=vibeshell\n' | sudo tee "$conf" >/dev/null
+        log "SDDM theme installed ($pal palette) and selected in $conf"
+    fi
+else
+    log "For a VibeShell SDDM theme, re-run with --sddm."
+fi
+
+# 8. Super tap: a lone Super key opens the palette while Super+key still works.
+# keyd's overload(meta, f15) sends F15 on tap; niri binds F15 to the palette.
+if ((SUPER_TAP)); then
+    if ! command -v keyd >/dev/null; then
+        warn "keyd is not installed."
+        if confirm "Install keyd now? (pacman -S keyd)"; then
+            sudo pacman -S --needed --noconfirm keyd
+        else
+            die "keyd is required for --super-tap."
+        fi
+    fi
+    if [[ ! -f /etc/keyd/default.conf ]] || confirm "Overwrite /etc/keyd/default.conf with the Super-tap rule?"; then
+        if [[ -f /etc/keyd/default.conf ]]; then
+            sudo cp -a /etc/keyd/default.conf "/etc/keyd/default.conf.bak.$(date +%Y%m%d-%H%M%S)"
+        fi
+        sudo mkdir -p /etc/keyd
+        sudo tee /etc/keyd/default.conf >/dev/null <<'EOF'
+# Managed by the VibeShell installer: a lone Super key opens the palette.
+# Super combined with another key keeps working normally.
+[ids]
+*
+
+[main]
+leftmeta = overload(meta, f15)
+EOF
+        sudo systemctl enable --now keyd 2>/dev/null || warn "Could not start keyd (run 'sudo systemctl enable --now keyd')."
+        log "Super tap -> F15 configured (keyd)."
+    fi
+    log "The F15 -> palette bind lives in $SNIPPET (re-run with --niri to add it)."
+else
+    log "For Super-tap palette (a lone Super key), re-run with --super-tap."
+fi
+
+# 9. Remove plymouth and the silent boot.
+if ((STRIP_PLYMOUTH)); then
+    if ! pacman -Qq plymouth >/dev/null 2>&1 && [[ ! -f /etc/default/grub ]]; then
+        log "No plymouth and no /etc/default/grub, nothing to strip."
+    elif confirm "Remove plymouth and the silent boot (quiet/splash) from GRUB?"; then
+        if [[ -f /etc/default/grub ]]; then
+            backup_grub="/etc/default/grub.bak.$(date +%Y%m%d-%H%M%S)"
+            sudo cp -a /etc/default/grub "$backup_grub"
+            # Drop splash/quiet from the kernel command line and turn the boot
+            # verbose again (loglevel 3/4 -> 6).
+            sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)splash \?/\1/; s/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)quiet \?/\1/; s/loglevel=[0-5]/loglevel=6/' /etc/default/grub
+            log "Backed up /etc/default/grub -> $backup_grub and dropped splash/quiet (loglevel=6)."
+            if command -v grub-mkconfig >/dev/null; then
+                sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null && log "Regenerated /boot/grub/grub.cfg."
+            fi
+        fi
+        # Remove the plymouth mkinitcpio hook so the boot stays verbose.
+        if [[ -f /etc/mkinitcpio.conf ]] && grep -q 'plymouth' /etc/mkinitcpio.conf; then
+            backup_mk="/etc/mkinitcpio.conf.bak.$(date +%Y%m%d-%H%M%S)"
+            sudo cp -a /etc/mkinitcpio.conf "$backup_mk"
+            sudo sed -i 's/ plymouth//g' /etc/mkinitcpio.conf
+            log "Backed up /etc/mkinitcpio.conf -> $backup_mk and removed the plymouth hook."
+            if command -v mkinitcpio >/dev/null; then
+                sudo mkinitcpio -P >/dev/null && log "Rebuilt initramfs."
+            fi
+        fi
+        if pacman -Qq plymouth >/dev/null 2>&1; then
+            if confirm "Also remove the plymouth package?"; then
+                sudo pacman -Rns --noconfirm plymouth
+            fi
+        fi
+    fi
+else
+    log "To remove plymouth / the silent boot, re-run with --no-plymouth."
 fi
 
 log "Done. To try it without restarting niri: quickshell -p $SRC/shell"

@@ -18,7 +18,15 @@ Singleton {
     property color urgent: "#ffffff"
 
     readonly property string fontFamily: Settings.data.font.family
-    readonly property int fontSize: Settings.data.font.size
+
+    // Global UI scale (Settings > "ui.scale"). Multiplies the font AND every
+    // pixel constant (bar height, gaps, radius...), so the whole shell scales
+    // together instead of only the text.
+    readonly property real uiScale: Settings.data.ui.scale
+    readonly property int fontSize: Math.round(Settings.data.font.size * uiScale)
+
+    // Shell-wide animation toggle (Settings > "anim.enabled", :anim command).
+    readonly property bool animations: Settings.data.anim.enabled
 
     // Palettes shipped with the shell, for the :theme command. Any file in
     // palette/ works too, via :set theme.palette <name>.
@@ -28,10 +36,10 @@ Singleton {
     readonly property real cellW: metrics.advanceWidth("M")
     readonly property real cellH: metrics.height
 
-    readonly property int barHeight: Settings.data.bar.height
-    readonly property int gap: Settings.data.bar.gap
-    readonly property int radius: Settings.data.bar.radius
-    readonly property int borderWidth: Settings.data.bar.borderWidth
+    readonly property int barHeight: Math.round(Settings.data.bar.height * uiScale)
+    readonly property int gap: Math.round(Settings.data.bar.gap * uiScale)
+    readonly property int radius: Math.round(Settings.data.bar.radius * uiScale)
+    readonly property int borderWidth: Math.round(Settings.data.bar.borderWidth * uiScale)
 
     FontMetrics {
         id: metrics

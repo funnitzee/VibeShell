@@ -73,6 +73,28 @@ Singleton {
         onLoaded: root.host = text().trim()
     }
 
+    // Lid close -> lock. Polled from /proc/acpi (works on any laptop; no output
+    // on desktops, so the poll is just a no-op there).
+    Timer {
+        interval: 2000
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: if (!lidQuery.running)
+            lidQuery.running = true
+    }
+
+    Process {
+        id: lidQuery
+        command: ["sh", "-c", "cat /proc/acpi/button/lid/*/state 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.includes("closed"))
+                    root.lock();
+            }
+        }
+    }
+
     PamContext {
         id: pam
 

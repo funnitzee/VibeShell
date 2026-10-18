@@ -36,7 +36,7 @@ Variants {
             Workspaces {
                 id: workspaces
                 anchors.left: parent.left
-                anchors.leftMargin: 14
+                anchors.leftMargin: Theme.cellW * 1.5
                 anchors.verticalCenter: parent.verticalCenter
                 screenName: modelData.name
             }
@@ -55,7 +55,7 @@ Variants {
 
             Row {
                 anchors.right: parent.right
-                anchors.rightMargin: 14
+                anchors.rightMargin: Theme.cellW * 1.5
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.cellW * 2
 

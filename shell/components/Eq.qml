@@ -22,7 +22,7 @@ Txt {
     Timer {
         interval: 170
         repeat: true
-        running: root.active
+        running: root.active && Theme.animations
         onTriggered: root.levels = Array.from({
             length: root.bars
         }, () => Math.floor(Math.random() * 8))

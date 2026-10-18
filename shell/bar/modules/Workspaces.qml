@@ -9,7 +9,7 @@ Row {
 
     required property string screenName
 
-    spacing: 4
+    spacing: Theme.cellW * 0.5
 
     Repeater {
         model: Niri.workspaces.filter(w => w.output === root.screenName)

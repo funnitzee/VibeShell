@@ -11,10 +11,11 @@ import qs.greeter
 import qs.settings
 
 ShellRoot {
-    // Headless services, kept alive for the whole session (idle locking and
-    // app theme generation on palette change).
+    // Headless services, kept alive for the whole session (idle locking, app
+    // theme generation on palette change and the saved wallpaper).
     readonly property var idle: Idle
     readonly property var theming: AppTheming
+    readonly property var wallpaper: Wallpaper
 
     Bar {}
     Palette {}

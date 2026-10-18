@@ -122,6 +122,7 @@ Scope {
                     color: Theme.fg
 
                     SequentialAnimation on opacity {
+                        running: Theme.animations
                         loops: Animation.Infinite
                         NumberAnimation {
                             to: 0

@@ -175,6 +175,112 @@ Singleton {
             }
         },
         {
+            name: "wallpaper",
+            usage: "[next|prev|<path>]",
+            desc: "change the wallpaper (swww/swaybg)",
+            run: args => {
+                if (!Wallpaper.available)
+                    return {
+                        close: false,
+                        message: "no wallpaper tool found (install swww or swaybg)"
+                    };
+                if (args.length === 0 || args[0] === "next")
+                    Wallpaper.next();
+                else if (args[0] === "prev")
+                    Wallpaper.prev();
+                else
+                    Wallpaper.set(args.join(" "));
+                return {
+                    close: true
+                };
+            }
+        },
+        {
+            name: "tile",
+            usage: "[preset]",
+            desc: "tiling presets: wide narrow mono center float max",
+            run: args => {
+                const presets = {
+                    wide: ["set-column-width", "70%"],
+                    narrow: ["set-column-width", "30%"],
+                    mono: ["set-column-width", "100%"],
+                    center: ["center-column"],
+                    float: ["toggle-window-floating"],
+                    max: ["maximize-column"],
+                    normal: ["set-column-width", "50%"]
+                };
+                const p = presets[args[0]];
+                if (!p)
+                    return {
+                        close: false,
+                        message: `usage: :tile <${Object.keys(presets).join("|")}>`
+                    };
+                Niri.action(p[0], p.slice(1));
+                return {
+                    close: true
+                };
+            }
+        },
+        {
+            name: "niri",
+            usage: "<action> [args]",
+            desc: "run any niri action, e.g. :niri consume-or-expel-window-right",
+            run: args => {
+                if (args.length === 0)
+                    return {
+                        close: false,
+                        message: "usage: :niri <action> [args]   e.g. :niri center-column"
+                    };
+                Niri.action(args[0], args.slice(1));
+                return {
+                    close: true
+                };
+            }
+        },
+        {
+            name: "anim",
+            usage: "",
+            desc: "toggle shell animations",
+            run: () => {
+                const next = !Settings.data.anim.enabled;
+                const err = Settings.set("anim.enabled", next);
+                return {
+                    close: false,
+                    message: err !== "" ? err : `animations ${next ? "on" : "off"}`
+                };
+            }
+        },
+        {
+            name: "matugen",
+            usage: "",
+            desc: "sync app colors from the accent via matugen",
+            run: () => {
+                AppTheming.syncMatugen();
+                return {
+                    close: false,
+                    message: `matugen: ${String(Theme.accent)}`
+                };
+            }
+        },
+        {
+            name: "scale",
+            usage: "<n>",
+            desc: "UI scale, e.g. :scale 1.25",
+            run: args => {
+                const n = Number(args[0]);
+                if (args.length === 0 || Number.isNaN(n) || n < 0.5 || n > 3)
+                    return {
+                        close: false,
+                        message: "usage: :scale <0.5-3>"
+                    };
+                const err = Settings.set("ui.scale", Math.round(n * 100) / 100);
+                return {
+                    close: false,
+                    message: err !== "" ? err : `ui.scale = ${n}`
+                };
+            }
+        },
+        {
             name: "term",
             usage: "",
             desc: "open a terminal",

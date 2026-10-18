@@ -34,7 +34,7 @@ Item {
         width: Math.round((root.cols - 1) * Theme.cellW)
         height: Math.round((root.rows - 1) * Theme.cellH)
         color: "transparent"
-        border.width: 1
+        border.width: Theme.borderWidth
         border.color: root.color
     }
 
@@ -44,8 +44,8 @@ Item {
             required property int modelData
             x: Math.round(Theme.cellW / 2)
             y: Math.round(modelData * Theme.cellH + Theme.cellH / 2)
-            width: Math.round((root.cols - 1) * Theme.cellW) + 1
-            height: 1
+            width: Math.round((root.cols - 1) * Theme.cellW) + Theme.borderWidth
+            height: Theme.borderWidth
             color: root.color
         }
     }
@@ -56,7 +56,7 @@ Item {
             required property int modelData
             x: Math.round(modelData * Theme.cellW + Theme.cellW / 2)
             y: Math.round(Theme.cellH / 2)
-            width: 1
+            width: Theme.borderWidth
             height: Math.round((root.rows - 1) * Theme.cellH)
             color: root.color
         }

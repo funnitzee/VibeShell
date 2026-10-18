@@ -15,6 +15,64 @@ Scope {
     property var pendingNetwork: null
     property string passText: ""
 
+    // Keyboard selection over every actionable row (j/k to move, enter to
+    // activate). Rows are built from the current state, so hidden sections
+    // (no adapter, wifi off...) are skipped.
+    property int sel: 0
+
+    readonly property var navList: {
+        const items = [];
+        if (Audio.available)
+            items.push({
+                id: "vol",
+                activate: () => Audio.toggleMute()
+            });
+        if (Net.wifiAvailable)
+            items.push({
+                id: "wifi",
+                activate: () => Net.setWifiEnabled(!Net.wifiEnabled)
+            });
+        if (Net.wifiAvailable && Net.wifiEnabled)
+            Net.wifiNetworks.slice(0, 5).forEach((n, i) => items.push({
+                id: "net" + i,
+                activate: () => root.pickNetwork(n)
+            }));
+        if (Bluetooth.available)
+            items.push({
+                id: "bt",
+                activate: () => Bluetooth.setEnabled(!Bluetooth.enabled)
+            });
+        if (Bluetooth.available && Bluetooth.enabled)
+            Bluetooth.devices.slice(0, 3).forEach((d, i) => items.push({
+                id: "dev" + i,
+                activate: () => Bluetooth.toggleDevice(d)
+            }));
+        if (Brightness.available)
+            items.push({
+                id: "bri",
+                activate: () => {}
+            });
+        return items;
+    }
+
+    onNavListChanged: sel = Math.min(sel, Math.max(0, navList.length - 1))
+
+    function moveSel(delta) {
+        if (navList.length === 0)
+            return;
+        root.sel = (root.sel + delta + navList.length) % navList.length;
+    }
+
+    function activateSel() {
+        if (navList.length > 0)
+            navList[root.sel].activate();
+    }
+
+    // True when the row with this id is the selected one (draws the cursor).
+    function selected(id) {
+        return navList.length > 0 && navList[Math.min(sel, navList.length - 1)].id === id;
+    }
+
     function clearPending() {
         root.pendingNetwork = null;
         root.passText = "";
@@ -155,6 +213,29 @@ Scope {
                 } else if (event.key === Qt.Key_Q && root.pendingNetwork === null) {
                     Ui.closeQuick();
                     event.accepted = true;
+                } else if (root.pendingNetwork === null) {
+                    if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
+                        root.moveSel(1);
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
+                        root.moveSel(-1);
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        root.activateSel();
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_H || event.key === Qt.Key_Left) {
+                        if (root.selected("vol"))
+                            Audio.adjust(-5);
+                        else if (root.selected("bri"))
+                            Brightness.setPercent(Brightness.percent - 5);
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_L || event.key === Qt.Key_Right) {
+                        if (root.selected("vol"))
+                            Audio.adjust(5);
+                        else if (root.selected("bri"))
+                            Brightness.setPercent(Brightness.percent + 5);
+                        event.accepted = true;
+                    }
                 }
             }
 
@@ -167,6 +248,12 @@ Scope {
                 Txt {
                     text: "vol "
                     color: Theme.dim
+                }
+
+                Txt {
+                    x: 4 * Theme.cellW
+                    text: root.selected("vol") ? ">" : " "
+                    color: Theme.accent
                 }
 
                 ClickBar {
@@ -198,6 +285,12 @@ Scope {
                 Txt {
                     text: "wifi "
                     color: Theme.dim
+                }
+
+                Txt {
+                    x: 5 * Theme.cellW
+                    text: root.selected("wifi") ? ">" : " "
+                    color: Theme.accent
                 }
 
                 Txt {
@@ -250,6 +343,12 @@ Scope {
                     }
 
                     Txt {
+                        x: 0
+                        text: root.selected("net" + index) ? ">" : " "
+                        color: Theme.accent
+                    }
+
+                    Txt {
                         x: 5 * Theme.cellW
                         width: 30 * Theme.cellW
                         elide: Text.ElideRight
@@ -274,6 +373,12 @@ Scope {
                 Txt {
                     text: "bt   "
                     color: Theme.dim
+                }
+
+                Txt {
+                    x: 5 * Theme.cellW
+                    text: root.selected("bt") ? ">" : " "
+                    color: Theme.accent
                 }
 
                 Txt {
@@ -318,6 +423,12 @@ Scope {
                     }
 
                     Txt {
+                        x: 0
+                        text: root.selected("dev" + index) ? ">" : " "
+                        color: Theme.accent
+                    }
+
+                    Txt {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.cellW
                         color: Theme.dim
@@ -341,6 +452,12 @@ Scope {
                     color: Theme.dim
                 }
 
+                Txt {
+                    x: 4 * Theme.cellW
+                    text: root.selected("bri") ? ">" : " "
+                    color: Theme.accent
+                }
+
                 ClickBar {
                     x: 5 * Theme.cellW
                     value: Brightness.percent
@@ -351,6 +468,14 @@ Scope {
                     x: 20 * Theme.cellW
                     text: `${Brightness.percent}%`
                 }
+            }
+
+            // -- hint (shares the last row with the password prompt) -----------
+            Txt {
+                y: 15 * Theme.cellH
+                visible: root.pendingNetwork === null
+                color: Theme.dim
+                text: "j/k move   enter select   h/l adjust   esc close"
             }
 
             // -- wifi password prompt ------------------------------------------

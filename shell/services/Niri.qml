@@ -16,6 +16,11 @@ Singleton {
         Quickshell.execDetached(["niri", "msg", "action", "focus-workspace", String(idx)]);
     }
 
+    // Run any niri action with optional arguments (used by :niri and :tile).
+    function action(name, args) {
+        Quickshell.execDetached(["niri", "msg", "action", name].concat((args ?? []).map(String)));
+    }
+
     function refreshWindowTitle() {
         if (!focusedQuery.running)
             focusedQuery.running = true;

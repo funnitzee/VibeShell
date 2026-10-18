@@ -6,6 +6,16 @@
     "family": "JetBrainsMono Nerd Font",
     "size": 13
   },
+  "ui": {
+    "scale": 1.0
+  },
+  "anim": {
+    "enabled": true
+  },
+  "wallpaper": {
+    "path": "",
+    "dir": "~/Pictures/Wallpapers"
+  },
   "apps": {
     "terminal": "kitty"
   },
@@ -13,7 +23,9 @@
     "kitty": true,
     "gtk": true,
     "vscode": true,
-    "spicetify": true
+    "spicetify": true,
+    "sddm": true,
+    "matugen": true
   },
   "stats": {
     "interval": 2000

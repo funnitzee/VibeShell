@@ -28,6 +28,10 @@ Scope {
                 step: 1,
                 min: 6
             },
+            "ui.scale": {
+                step: 0.1,
+                min: 0.5
+            },
             "stats.interval": {
                 step: 100,
                 min: 100
@@ -165,7 +169,9 @@ Scope {
                 root.status = `not a number: ${raw}`;
                 return;
             }
-            commit(row.path, Math.max(spec.min, Math.round(n)));
+            // Integer steps round; float steps (e.g. ui.scale) keep the value.
+            const val = spec.step >= 1 ? Math.round(n) : Math.round(n * 100) / 100;
+            commit(row.path, Math.max(spec.min, val));
         } else {
             commit(row.path, raw);
         }
@@ -277,6 +283,11 @@ Scope {
                     root.startEdit();
                     event.accepted = true;
                     break;
+                case Qt.Key_G:
+                    root.status = "";
+                    root.cursor = event.modifiers & Qt.ShiftModifier ? root.rowCount - 1 : 0;
+                    event.accepted = true;
+                    break;
                 }
             }
 
@@ -364,7 +375,7 @@ Scope {
             Txt {
                 y: (root.rowCount + 3) * Theme.cellH
                 color: root.status !== "" ? Theme.urgent : Theme.dim
-                text: root.status !== "" ? root.status : "j/k move   h/l change   enter edit   esc close"
+                text: root.status !== "" ? root.status : "j/k move   h/l change   g/G top/bottom   enter edit   esc close"
             }
         }
     }

@@ -1,0 +1,14 @@
+[SddmGreeterTheme]
+Name=VibeShell
+Description=Terminal-style monochrome theme for VibeShell
+Author=funnitzee
+Copyright=(c) 2026, funnitzee
+License=MIT
+Type=sddm-theme
+Version=1.0
+Website=https://github.com/funnitzee/VibeShell
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=vibeshell
+Theme-API=2.0
+QtVersion=6

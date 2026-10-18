@@ -58,7 +58,7 @@ Scope {
 
                 Timer {
                     interval: 600
-                    running: Lock.locked
+                    running: Lock.locked && Theme.animations
                     repeat: true
                     triggeredOnStart: true
                     onTriggered: input.cursorOn = !input.cursorOn

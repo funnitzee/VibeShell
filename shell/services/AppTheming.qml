@@ -55,6 +55,57 @@ Singleton {
             spicetifyColorFile.setText(spicetifyColorIni(p));
             spicetifyCssFile.setText(spicetifyUserCss(p));
         }
+        if (enabled.sddm)
+            sddmConfFile.setText(sddmThemeConf(p));
+        if (enabled.matugen)
+            syncMatugen();
+    }
+
+    // theme.conf for the VibeShell SDDM theme. The installer copies this into
+    // /usr/share/sddm/themes/vibeshell (with --sddm), so the login screen can
+    // follow the palette too.
+    function sddmThemeConf(p) {
+        const c = {
+            bg: String(Theme.bg),
+            fg: String(Theme.fg),
+            dim: String(Theme.dim),
+            border: String(Theme.border),
+            accent: String(Theme.accent),
+            urgent: String(Theme.urgent)
+        };
+        return `[General]
+# VibeShell SDDM theme: ${p} (generated, do not edit)
+bg=${c.bg}
+fg=${c.fg}
+dim=${c.dim}
+border=${c.border}
+accent=${c.accent}
+urgent=${c.urgent}
+font=${Settings.data.font.family}
+`;
+    }
+
+    // Push the current accent into matugen, so every matugen-managed app
+    // (waybar, rofi, qt, gtk...) follows the shell palette.
+    function syncMatugen() {
+        if (!matugenProbe.available)
+            return;
+        matugenSync.command = ["matugen", "color", "hex", String(Theme.accent)];
+        matugenSync.running = true;
+    }
+
+    Process {
+        id: matugenProbe
+        command: ["sh", "-c", "command -v matugen"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: matugenProbe.available = text.trim() !== ""
+        }
+        property bool available: false
+    }
+
+    Process {
+        id: matugenSync
     }
 
     // ---- colour helpers -------------------------------------------------
@@ -185,7 +236,38 @@ Singleton {
             accent: String(Theme.accent),
             urgent: String(Theme.urgent)
         };
-        return `# VibeShell kitty theme: ${p} (generated, do not edit)
+        // Full kitty.conf, not just colours: font, padding, cursor and
+        // scrollback come from the shell settings so kitty looks right
+        // straight after install.
+        return `# VibeShell kitty config: ${p} (generated, do not edit)
+
+# font
+font_family      ${Settings.data.font.family}
+bold_font        auto
+italic_font      auto
+font_size        ${Settings.data.font.size}
+# cell/padding in the same rhythm as the shell UI
+window_padding_width ${Math.round(Settings.data.font.size * 0.6)}
+
+# cursor
+cursor_shape             block
+cursor_blink_interval    ${Theme.animations ? 0.5 : 0}
+cursor_stop_blinking_after 15.0
+shell_integration        enabled
+
+# window
+remember_window_size  yes
+initial_window_width  92c
+initial_window_height 28c
+window_margin_width   4
+confirm_os_window_close 0
+enable_audio_bell     no
+
+# scrollback
+scrollback_lines      10000
+scrollback_pager_history_size 64
+
+# colors
 foreground ${c.fg}
 background ${c.bg}
 cursor ${c.accent}
@@ -395,5 +477,11 @@ highlight-active = ${c.accent}
         id: spicetifyCssFile
         path: root.outDir + "/spicetify/user.css"
         onSaveFailed: error => console.warn("VibeShell: could not write spicetify user.css:", error)
+    }
+
+    FileView {
+        id: sddmConfFile
+        path: root.outDir + "/sddm/theme.conf"
+        onSaveFailed: error => console.warn("VibeShell: could not write SDDM theme.conf:", error)
     }
 }
