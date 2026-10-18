@@ -2,7 +2,12 @@
 
 A custom, terminal-flavoured desktop shell for [niri](https://github.com/YaLTeR/niri), built on [Quickshell](https://quickshell.org/) (QML).
 
-> Work in progress. Currently a monochrome-by-default theme, a TUI-style bar, a command palette, a dashboard, a quick settings panel, a settings window, a notification daemon and a volume OSD.
+> Work in progress. A monochrome-by-default, TUI-flavoured shell with a floating
+> top bar, a vim-style command palette, a dashboard, quick settings, a settings
+> window, a notification daemon, a lock screen (idle + lid), an optional
+> greetd greeter / SDDM login theme, app theming (kitty, GTK, VS Code, spicetify),
+> switchable colour palettes, wallpaper control, tiling presets, a global UI scale
+> and optional matugen colour sync.
 
 ## Preview
 
@@ -203,7 +208,6 @@ are on by default on niri 25.05+, so there is nothing to configure in VibeShell.
   in the settings window, with `:scale 1.25`, or `:set ui.scale 1.25`.
 - `anim.enabled` (default `true`) toggles the shell's animations (blinking cursors,
   the equalizer). Toggle with `:anim` or `:set anim.enabled false`.
-
 
 ## Command palette
 
