@@ -105,10 +105,23 @@ Or, if you trust this repo:
 curl -fsSL https://raw.githubusercontent.com/funnitzee/VibeShell/main/install.sh | bash -s -- --niri
 ```
 
+Combine the flags you want. A full setup (app themes, SDDM login theme, a lone-Super
+palette key and a verbose boot) is:
+
+```sh
+bash install.sh --niri --apps --sddm --super-tap --no-plymouth
+```
+
+`--greeter` is the greetd alternative to `--sddm` — use one or the other. The same
+flags work with the one-liner, e.g.:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/funnitzee/VibeShell/main/install.sh | bash -s -- --niri --apps --super-tap
+```
+
 The installer asks before running `sudo pacman`, backs up every file it overwrites
 (`<file>.bak.<timestamp>`), and can be re-run safely. Without `--niri` it only
 writes `~/.config/niri/vibeshell.kdl` and tells you which `include` line to add.
-Add `--apps` to also wire the app themes (see [App theming](#app-theming)).
 
 The full flag list:
 
