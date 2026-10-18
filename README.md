@@ -20,7 +20,7 @@ The dashboard (`Mod+P` or `:dash`): LED clock, calendar, system panel and now pl
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-The quick settings panel (`Mod+S` or `:qs`): volume, Wi-Fi, Bluetooth and brightness.
+The quick settings panel (`Mod+S` or `:qs`): volume, Wi-Fi, Bluetooth and brightness. Navigate with `j`/`k`, activate with `Enter`, `h`/`l` adjusts volume or brightness, `Esc`/`q` closes.
 
 ![Quick settings](docs/screenshots/quick.png)
 
@@ -35,6 +35,10 @@ Notifications: VibeShell is the notification daemon, and popups are TUI cards wi
 ## Lock screen & idle
 
 - Lock: `Mod+Alt+L`, `:lock`, or `quickshell ipc -p <shell> call lock lock`
+  (if your niri config already binds `Mod+Alt+L` elsewhere, the installer's snippet
+  skips its own bind and that one stays in charge)
+- Lid close: the shell watches `/proc/acpi/button/lid/*/state` and locks as soon as the
+  lid is closed (works on any laptop; a no-op on desktops)
 - Idle: auto-lock after `idle.lock` seconds, power off monitors after `idle.screenOff` seconds (set to 0 to disable)
 - PAM: uses `lock.service` (defaults to `login`); set `VIBESHELL_PAM_DIR` to test custom PAM configs
 - Note: while locked, niri blocks screen capture
@@ -52,14 +56,28 @@ palette change. Files land in `~/.config/vibeshell/app-themes/`:
 
 | App | File | How it is wired |
 |---|---|---|
-| kitty | `kitty/kitty-theme.conf` | `include` line in `kitty.conf` |
+| kitty | `kitty/kitty-theme.conf` | `include` line in `kitty.conf` (a full config: font, padding, cursor, scrollback and colours) |
 | GTK 3 / 4 | `gtk/gtk.css` | `@import` in `gtk-3.0/gtk.css` and `gtk-4.0/gtk.css` |
 | VS Code | `vscode/` | symlink into `~/.vscode/extensions/vibeshell-theme` |
 | spicetify | `spicetify/` | symlink into `~/.config/spicetify/Themes/VibeShell` |
+| SDDM | `sddm/theme.conf` | `install.sh --sddm` copies the theme into `/usr/share/sddm/themes/vibeshell` |
 
 Run `install.sh --apps` to add the include lines and symlinks (each file is backed
 up first). Toggle per-app generation in `settings.json` under `theming`
-(`kitty`, `gtk`, `vscode`, `spicetify`), or regenerate manually with `:theming`.
+(`kitty`, `gtk`, `vscode`, `spicetify`, `sddm`, `matugen`), or regenerate manually
+with `:theming`.
+
+With `theming.matugen` enabled (the default), every palette change also pushes the
+accent into [matugen](https://github.com/InioX/matugen) (`matugen color hex <accent>`),
+so anything you have matugen generating from follows the shell too. Run it by hand
+with `:matugen`.
+
+### SDDM login theme
+
+`install.sh --sddm` installs a terminal-styled SDDM theme (`sddm/vibeshell/`) and
+selects it in `/etc/sddm.conf.d/vibeshell.conf`. The colours come from the live
+`app-themes/sddm/theme.conf` the shell generates, so the login screen matches the
+palette.
 
 ## Install (Arch / CachyOS)
 
@@ -82,7 +100,77 @@ The installer asks before running `sudo pacman`, backs up every file it overwrit
 writes `~/.config/niri/vibeshell.kdl` and tells you which `include` line to add.
 Add `--apps` to also wire the app themes (see [App theming](#app-theming)).
 
+The full flag list:
+
+| Flag | What it does |
+|---|---|
+| `--niri` | add `include "vibeshell.kdl"` to your `config.kdl` (backed up first) |
+| `--apps` | wire kitty/GTK includes and the VS Code/spicetify symlinks |
+| `--sddm` | install the VibeShell SDDM theme and select it |
+| `--super-tap` | install keyd so a lone Super key opens the palette (see below) |
+| `--no-plymouth` | remove plymouth and the silent boot (`quiet`/`splash`, `loglevel=6`) |
+| `--no-packages` | skip the `pacman` step |
+| `-y`, `--yes` | never ask for confirmation |
+
+When writing `vibeshell.kdl`, the installer skips any bind whose key is already
+bound elsewhere in your niri config (dms, `config.kdl`, ...), because niri refuses
+to load a config with duplicate keybinds.
+
 Try it without restarting niri: `quickshell -p ~/.local/share/vibeshell/shell`
+
+### Open the palette with a lone Super key
+
+niri cannot bind a bare modifier (`Mod` on its own) — a `Mod+X` bind fires for every
+`Mod+X`, and there is no "prefix only" bind. So `install.sh --super-tap` uses
+[keyd](https://github.com/rvaiya/keyd) to turn a lone left Super into `F15`:
+
+```
+leftmeta = overload(meta, f15)
+```
+
+Holding Super still acts as `Mod` (so `Mod+Return` etc. keep working); tapping it
+sends `F15`, which the niri snippet binds to the palette. `Mod+;` stays bound as a
+fallback. The rule lives in `/etc/keyd/default.conf`.
+
+## Tiling presets
+
+The command palette exposes niri's actions:
+
+| Command | What it does |
+|---|---|
+| `:tile <preset>` | `wide` (70%), `narrow` (30%), `mono` (100%), `normal` (50%), `center`, `float`, `max` |
+| `:niri <action> [args]` | run any niri action, e.g. `:niri consume-or-expel-window-right`, `:niri focus-monitor-left` |
+
+So `:niri <action>` is a full escape hatch to niri's whole action list.
+
+## Wallpaper
+
+Install `swaybg` (or `swww`) and the shell manages the wallpaper for you:
+
+| Command | What it does |
+|---|---|
+| `:wallpaper` / `:wallpaper next` | next image in `wallpaper.dir` |
+| `:wallpaper prev` | previous image |
+| `:wallpaper <path>` | set a specific image |
+
+The current image is saved to `wallpaper.path` and restored on startup. `wallpaper.dir`
+(default `~/Pictures/Wallpapers`) is scanned for `.jpg/.jpeg/.png/.webp`.
+
+## Touchpad gestures
+
+Workspace switching and horizontal scrolling are handled by niri itself, not the
+shell: three-finger vertical swipes switch workspaces and three-finger horizontal
+swipes move the view between windows (four-finger vertical opens the overview). They
+are on by default on niri 25.05+, so there is nothing to configure in VibeShell.
+
+## UI scale & animations
+
+- `ui.scale` (default `1.0`) multiplies the font **and** every pixel constant (bar
+  height, gaps, radius, borders), so the whole shell — not just text — scales. Set it
+  in the settings window, with `:scale 1.25`, or `:set ui.scale 1.25`.
+- `anim.enabled` (default `true`) toggles the shell's animations (blinking cursors,
+  the equalizer). Toggle with `:anim` or `:set anim.enabled false`.
+
 
 ## Command palette
 
@@ -101,6 +189,12 @@ Press `Mod+;` (bound by the installer's niri snippet). Type to search applicatio
 | `:lock` | lock the screen |
 | `:theming` | regenerate app theme files under `app-themes/` |
 | `:theme [name\|next]` | switch colour palette (`next` cycles) |
+| `:wallpaper [next\|prev\|<path>]` | change the wallpaper |
+| `:tile <preset>` | tiling preset: `wide`, `narrow`, `mono`, `normal`, `center`, `float`, `max` |
+| `:niri <action> [args]` | run any niri action |
+| `:anim` | toggle shell animations |
+| `:matugen` | sync app colours from the accent via matugen |
+| `:scale <n>` | set the UI scale, e.g. `:scale 1.25` |
 
 `Enter` runs, `Tab` completes, `Up`/`Down` (or `Ctrl+P`/`Ctrl+N`) move, `Esc` closes.
 It can also be driven from a script: `quickshell ipc -p <shell dir> call palette open ":"`
@@ -113,15 +207,22 @@ User settings live in `~/.config/vibeshell/settings.json` and override
 
 The settings window (`Mod+Shift+S`, `:settings`, or `... call settings toggle`)
 lists every key below and edits it in place: `j`/`k` move, `h`/`l` (or arrows)
-change values and cycle the palette, `Enter`/`e` types a value, `Esc`/`q` closes.
+change values and cycle the palette, `g`/`G` jump to the top/bottom, `Enter`/`e`
+types a value, `Esc`/`q` closes.
 
 ```json
 {
   "theme": { "palette": "monochrome" },
   "font": { "family": "JetBrainsMono Nerd Font", "size": 13 },
+  "ui": { "scale": 1.0 },
+  "anim": { "enabled": true },
+  "wallpaper": { "path": "", "dir": "~/Pictures/Wallpapers" },
   "apps": { "terminal": "kitty" },
+  "theming": { "kitty": true, "gtk": true, "vscode": true, "spicetify": true, "sddm": true, "matugen": true },
   "stats": { "interval": 2000 },
   "notify": { "timeout": 5, "max": 4 },
+  "lock": { "service": "login" },
+  "idle": { "lock": 300, "screenOff": 600 },
   "bar": { "height": 34, "gap": 8, "radius": 10, "borderWidth": 1 }
 }
 ```
@@ -161,9 +262,10 @@ shell/       Quickshell config (entry point: shell/shell.qml)
   osd/       On-screen display (volume)
   palette/   Command palette (UI and command backend)
   components/ Reusable pieces: TuiFrame, Spark, Gauge, Txt, BigClock, Eq
-  services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications
+  services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications, wallpaper, app theming
   palettes/  Color palettes
   defaults/  Shipped default settings
+sddm/        SDDM login theme (installed with --sddm)
 dev/         Nested niri sandbox and screenshot generator
 docs/        Screenshots used in this README
 ```
@@ -183,3 +285,10 @@ docs/        Screenshots used in this README
 - [x] Lock screen + idle
 - [x] Greeter
 - [x] App theming (kitty, GTK, VS Code, ...)
+- [x] SDDM login theme (`--sddm`)
+- [x] Wallpaper control (`:wallpaper`, swaybg/swww)
+- [x] Tiling presets and `:niri` action passthrough
+- [x] Global UI scale (`ui.scale`) and animation toggle (`:anim`)
+- [x] Super-tap palette via keyd (`--super-tap`)
+- [x] Lock on lid close
+- [x] Optional matugen colour sync (`theming.matugen`)
