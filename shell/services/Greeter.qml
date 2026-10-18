@@ -34,6 +34,13 @@ Singleton {
 
     readonly property string defaultUser: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
+    // Shown automatically when the shell is started as greetd's greeter session
+    // (greetd exports GREETD_SOCK to the greeter only).
+    Component.onCompleted: {
+        if (Quickshell.env("GREETD_SOCK"))
+            root.start();
+    }
+
     onPasswordChanged: {
         if (password !== "") {
             root.failed = false;

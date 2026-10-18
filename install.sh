@@ -17,6 +17,10 @@
 #   5. with --niri: adds `include "vibeshell.kdl"` to your niri config.kdl
 #   6. with --apps: wires kitty/GTK include lines and VS Code/spicetify theme
 #      symlinks so external apps follow the VibeShell palette (backed up first)
+#   7. with --sddm: installs the VibeShell SDDM theme and selects it
+#   8. with --greeter: installs greetd and configures the niri/VibeShell greeter
+#   9. with --super-tap: installs keyd so a lone Super key opens the palette
+#      (installing a package does not start it: see the hints at the end)
 #
 # Every file it would overwrite is backed up first as <file>.bak.<timestamp>.
 
@@ -25,13 +29,25 @@ set -euo pipefail
 REPO_URL="https://github.com/funnitzee/VibeShell.git"
 PREFIX="${VIBESHELL_PREFIX:-$HOME/.local/share/vibeshell}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl kitty swaybg)
+# Base packages every VibeShell install needs:
+#   niri + quickshell + font   the compositor and the shell itself
+#   kitty                      terminal (Mod+Return, :term)
+#   brightnessctl              brightness keys / quick settings
+#   swaybg                     wallpaper (`:wallpaper`; swww is AUR only)
+#   wireplumber                `wpctl`: volume keys, audio OSD (pulls pipewire)
+#   networkmanager             Wi-Fi panel (Quickshell.Networking talks to NM)
+#   bluez                      Bluetooth panel (Quickshell.Bluetooth talks to bluez)
+#   upower                     battery in the dashboard/quick settings
+#   matugen                    optional colour sync (theming.matugen, on by default)
+PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl kitty swaybg
+    wireplumber networkmanager bluez upower matugen)
 
 ASSUME_YES=0
 INSTALL_PACKAGES=1
 PATCH_NIRI=0
 PATCH_APPS=0
 INSTALL_SDDM=0
+INSTALL_GREETER=0
 SUPER_TAP=0
 STRIP_PLYMOUTH=0
 
@@ -44,6 +60,7 @@ Usage: install.sh [options]
       --niri         add `include "vibeshell.kdl"` to your niri config.kdl (backed up first)
       --apps         wire kitty/GTK includes + VS Code/spicetify theme symlinks (backed up first)
       --sddm         install the VibeShell SDDM theme and select it (backed up first, needs sudo)
+      --greeter      install greetd and configure the niri/VibeShell greeter (backed up first, needs sudo)
       --super-tap    make a lone Super key open the palette (installs keyd, backed up first)
       --no-plymouth  remove plymouth and the silent boot (quiet/splash) from the kernel cmdline
   -h, --help         show this help
@@ -112,6 +129,7 @@ while (($#)); do
     --niri) PATCH_NIRI=1 ;;
     --apps) PATCH_APPS=1 ;;
     --sddm) INSTALL_SDDM=1 ;;
+    --greeter) INSTALL_GREETER=1 ;;
     --super-tap) SUPER_TAP=1 ;;
     --no-plymouth) STRIP_PLYMOUTH=1 ;;
     -h | --help)
@@ -125,6 +143,12 @@ while (($#)); do
     esac
     shift
 done
+
+# A display manager / extra daemon is only pulled in when its flag is used, so a
+# plain install never swaps the user's login manager by accident.
+((INSTALL_SDDM)) && PACKAGES+=(sddm)
+((INSTALL_GREETER)) && PACKAGES+=(greetd)
+((SUPER_TAP)) && PACKAGES+=(keyd)
 
 [[ $EUID -ne 0 ]] || die "Do not run this as root."
 
@@ -291,10 +315,12 @@ if ((INSTALL_SDDM)); then
         warn "SDDM not installed, skipping the theme."
     elif confirm "Install the VibeShell SDDM theme and set it as default?"; then
         # Active palette: name from settings.json, colours from palettes/<name>.json.
-        pal=$(grep -o '"palette": *"[^"]*"' "$CONFIG_HOME/vibeshell/settings.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+        # `|| true`: grep exits 1 when key is absent (e.g. empty settings.json) and
+        # the script runs under `set -e -o pipefail`.
+        pal=$(grep -o '"palette": *"[^"]*"' "$CONFIG_HOME/vibeshell/settings.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/') || true
         pal=${pal:-monochrome}
         pal_file="$SRC/shell/palettes/$pal.json"
-        json_get() { grep -o "\"$2\": *\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"\(#[0-9a-fA-F]*\)".*/\1/'; }
+        json_get() { grep -o "\"$2\": *\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"\(#[0-9a-fA-F]*\)".*/\1/' || true; }
         if [[ -f $pal_file ]]; then
             c_bg=$(json_get "$pal_file" bg)
             c_fg=$(json_get "$pal_file" fg)
@@ -343,7 +369,73 @@ else
     log "For a VibeShell SDDM theme, re-run with --sddm."
 fi
 
-# 8. Super tap: a lone Super key opens the palette while Super+key still works.
+# 8. Greeter: greetd + a minimal niri session that runs VibeShell as the login
+# greeter. greetd runs its session as the unprivileged "greeter" user, so the
+# shell is copied to a world-readable system path the greeter can read.
+if ((INSTALL_GREETER)); then
+    if ! command -v greetd >/dev/null; then
+        warn "greetd is not installed, skipping the greeter (re-run with packages enabled)."
+    elif ! command -v niri >/dev/null; then
+        warn "niri is not installed; the greeter session needs it. Skipping."
+    elif confirm "Install the VibeShell greeter and configure greetd for it?"; then
+        GREETER_SHELL=/usr/local/share/vibeshell/shell
+        sudo mkdir -p "$(dirname "$GREETER_SHELL")"
+        sudo rm -rf "$GREETER_SHELL"
+        sudo cp -r "$SRC/shell" "$GREETER_SHELL"
+        log "Copied the shell to $GREETER_SHELL (world-readable for the greeter user)."
+
+        GKDIR=/etc/greetd
+        sudo mkdir -p "$GKDIR"
+
+        # Session greetd starts: niri + quickshell. The Greeter UI takes over the
+        # screen on start (it is shown automatically when GREETD_SOCK is set).
+        kdl_tmp=$(mktemp)
+        cat >"$kdl_tmp" <<EOF
+// Managed by the VibeShell installer: runs the VibeShell greeter under niri.
+hotkey-overlay {
+    skip-at-startup
+}
+
+spawn-at-startup "quickshell" "-p" "$GREETER_SHELL"
+EOF
+        if ! niri validate -c "$kdl_tmp" >/dev/null 2>&1; then
+            rm -f "$kdl_tmp"
+            die "Generated greeter niri config did not validate; aborting."
+        fi
+        if [[ -e $GKDIR/vibeshell-greeter.kdl ]]; then
+            sudo cp -a "$GKDIR/vibeshell-greeter.kdl" "$GKDIR/vibeshell-greeter.kdl.bak.$(date +%Y%m%d-%H%M%S)"
+        fi
+        sudo cp "$kdl_tmp" "$GKDIR/vibeshell-greeter.kdl"
+        rm -f "$kdl_tmp"
+
+        if [[ -e $GKDIR/config.toml ]]; then
+            sudo cp -a "$GKDIR/config.toml" "$GKDIR/config.toml.bak.$(date +%Y%m%d-%H%M%S)"
+        fi
+        printf '[terminal]\nvt = 1\n\n[default_session]\ncommand = "niri -c %s"\nuser = "greeter"\n' \
+            "$GKDIR/vibeshell-greeter.kdl" | sudo tee "$GKDIR/config.toml" >/dev/null
+        log "Wrote $GKDIR/config.toml and $GKDIR/vibeshell-greeter.kdl"
+
+        # Only one display manager may own the seat; greetd must replace the rest.
+        for dm in sddm gdm lightdm ly; do
+            if systemctl is-enabled --quiet "$dm" 2>/dev/null; then
+                if confirm "Disable $dm so greetd can take over the login?"; then
+                    sudo systemctl disable "$dm" 2>/dev/null || warn "Could not disable $dm"
+                    log "Disabled $dm"
+                fi
+            fi
+        done
+        if confirm "Enable greetd now (log in through the VibeShell greeter)?"; then
+            sudo systemctl enable greetd 2>/dev/null || warn "Could not enable greetd"
+            log "Enabled greetd. Reboot (or switch VT) to reach the greeter."
+        else
+            warn "greetd installed but not enabled. Enable it later: sudo systemctl enable greetd"
+        fi
+    fi
+else
+    log "For the greetd greeter, re-run with --greeter."
+fi
+
+# 9. Super tap: a lone Super key opens the palette while Super+key still works.
 # keyd's overload(meta, f15) sends F15 on tap; niri binds F15 to the palette.
 if ((SUPER_TAP)); then
     if ! command -v keyd >/dev/null; then
@@ -376,7 +468,7 @@ else
     log "For Super-tap palette (a lone Super key), re-run with --super-tap."
 fi
 
-# 9. Remove plymouth and the silent boot.
+# 10. Remove plymouth and the silent boot.
 if ((STRIP_PLYMOUTH)); then
     if ! pacman -Qq plymouth >/dev/null 2>&1 && [[ ! -f /etc/default/grub ]]; then
         log "No plymouth and no /etc/default/grub, nothing to strip."
@@ -410,6 +502,26 @@ if ((STRIP_PLYMOUTH)); then
     fi
 else
     log "To remove plymouth / the silent boot, re-run with --no-plymouth."
+fi
+
+# Installing a package does not start its daemon. The Wi-Fi, Bluetooth and
+# battery panels stay empty until these run, so point that out (no sudo here).
+if command -v systemctl >/dev/null; then
+    inactive=()
+    for svc in NetworkManager bluetooth upower; do
+        if ! systemctl is-active --quiet "$svc" 2>/dev/null; then
+            inactive+=("$svc")
+        fi
+    done
+    if ((${#inactive[@]})); then
+        warn "These daemons are not running; the matching panels stay empty:"
+        warn "  sudo systemctl enable --now ${inactive[*]}"
+    fi
+fi
+
+# brightnessctl can only write /sys/class/backlight as a member of `video`.
+if command -v brightnessctl >/dev/null && ! id -nG "$USER" 2>/dev/null | grep -qw video; then
+    warn "Brightness keys need the 'video' group: sudo usermod -aG video $USER (then re-login)."
 fi
 
 log "Done. To try it without restarting niri: quickshell -p $SRC/shell"
