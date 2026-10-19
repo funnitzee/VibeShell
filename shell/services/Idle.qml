@@ -9,12 +9,23 @@ import qs
 // after `idle.lock` seconds without input and powers the monitors off after
 // `idle.screenOff` seconds; set either to 0 to disable it. Inhibitors are
 // respected, so a playing video or a fullscreen game won't lock you out.
+// `idle.stayAwake` disables both timers entirely (a manual "keep awake" toggle).
 // Any input turns the monitors back on.
 Singleton {
     id: root
 
+    readonly property bool stayAwake: Settings.data.idle.stayAwake
+
+    function toggleStayAwake() {
+        Settings.set("idle.stayAwake", !root.stayAwake);
+    }
+
+    function setStayAwake(on) {
+        Settings.set("idle.stayAwake", on);
+    }
+
     IdleMonitor {
-        enabled: Settings.data.idle.lock > 0
+        enabled: Settings.data.idle.lock > 0 && !root.stayAwake
         timeout: Settings.data.idle.lock
         respectInhibitors: true
         onIsIdleChanged: {
@@ -24,7 +35,7 @@ Singleton {
     }
 
     IdleMonitor {
-        enabled: Settings.data.idle.screenOff > 0
+        enabled: Settings.data.idle.screenOff > 0 && !root.stayAwake
         timeout: Settings.data.idle.screenOff
         respectInhibitors: true
         onIsIdleChanged: {

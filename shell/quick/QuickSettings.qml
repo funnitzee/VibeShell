@@ -62,6 +62,10 @@ Scope {
                 id: "ppd",
                 activate: () => PowerProfiles.cycle()
             });
+        items.push({
+            id: "awake",
+            activate: () => Idle.toggleStayAwake()
+        });
         return items;
     }
 
@@ -169,7 +173,7 @@ Scope {
         id: win
 
         readonly property int cols: 54
-        readonly property int rows: 18
+        readonly property int rows: 21
 
         visible: Ui.quickOpen
         color: "transparent"
@@ -211,7 +215,7 @@ Scope {
             rows: win.rows
             title: "quick settings"
             color: Theme.dim
-            dividers: [2, 9, 14]
+            dividers: [2, 9, 14, 17]
 
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
@@ -550,9 +554,41 @@ Scope {
                 }
             }
 
+            // -- stay awake ----------------------------------------------------
+            Item {
+                y: 17 * Theme.cellH
+                width: parent.width
+                height: Theme.cellH
+
+                Txt {
+                    text: "awake"
+                    color: Theme.dim
+                }
+
+                Txt {
+                    x: 5 * Theme.cellW
+                    text: root.selected("awake") ? ">" : " "
+                    color: Theme.accent
+                }
+
+                Txt {
+                    x: 6 * Theme.cellW
+                    text: Idle.stayAwake ? "● on" : "○ off"
+                    color: Idle.stayAwake ? Theme.accent : Theme.dim
+                }
+
+                Act {
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.cellW
+                    active: Idle.stayAwake
+                    text: Idle.stayAwake ? "[  on  ]" : "[ off ]"
+                    onActivated: Idle.toggleStayAwake()
+                }
+            }
+
             // -- hint (shares the last row with the password prompt) -----------
             Txt {
-                y: 17 * Theme.cellH
+                y: 18 * Theme.cellH
                 visible: root.pendingNetwork === null
                 color: Theme.dim
                 text: "j/k move   enter select   h/l adjust   esc close"
@@ -560,7 +596,7 @@ Scope {
 
             // -- wifi password prompt ------------------------------------------
             Item {
-                y: 17 * Theme.cellH
+                y: 18 * Theme.cellH
                 width: parent.width
                 height: Theme.cellH
                 visible: root.pendingNetwork !== null

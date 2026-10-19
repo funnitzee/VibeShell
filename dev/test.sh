@@ -212,6 +212,12 @@ check "brightness ipc set" "40" "$(call brightness set 40)"
 check "brightness ipc up" "45" "$(call brightness up)"
 check "brightness ipc down" "40" "$(call brightness down)"
 
+echo "idle"
+check ":awake on" "stay awake on" "$(pal ':awake on')"
+stay=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["idle"]["stayAwake"])' "$SB/config/vibeshell/settings.json" 2>&1)
+check ":awake persists" "True" "$stay"
+check ":awake off" "stay awake off" "$(pal ':awake off')"
+
 echo "panels"
 for p in quick settings keys dashboard; do
     out=$(call "$p" open)

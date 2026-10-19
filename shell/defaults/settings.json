@@ -48,7 +48,8 @@
   },
   "idle": {
     "lock": 300,
-    "screenOff": 600
+    "screenOff": 600,
+    "stayAwake": false
   },
   "bar": {
     "height": 34,

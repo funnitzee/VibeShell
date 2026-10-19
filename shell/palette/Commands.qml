@@ -622,6 +622,29 @@ Singleton {
             }
         },
         {
+            name: "awake",
+            usage: "[on|off]",
+            desc: "keep the session awake (disable idle lock/screen blank)",
+            run: args => {
+                const a = args[0];
+                if (a === "on")
+                    Idle.setStayAwake(true);
+                else if (a === "off")
+                    Idle.setStayAwake(false);
+                else if (a === undefined)
+                    Idle.toggleStayAwake();
+                else
+                    return {
+                        close: false,
+                        message: "usage: :awake [on|off]"
+                    };
+                return {
+                    close: false,
+                    message: `stay awake ${Idle.stayAwake ? "on" : "off"}`
+                };
+            }
+        },
+        {
             name: "keys",
             usage: "",
             desc: "keybind cheatsheet",
