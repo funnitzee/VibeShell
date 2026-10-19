@@ -11,6 +11,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install packages
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Sy --noconfirm --needed archlinux-keyring
+          pacman -S --noconfirm --needed quickshell shellcheck
+
+      - name: Lint (bash -n + shellcheck + qmllint)
+        run: bash dev/lint.sh
+
   smoke-tests:
     name: smoke tests
     runs-on: ubuntu-latest

@@ -17,15 +17,13 @@ ASSUME_YES=0
 DRY_RUN=0
 GUIDED=1
 PROFILE="guided"
-DO_MIN=0; DO_BAL=0; DO_FULL=0; DO_CUSTOM=0
+DO_CUSTOM=0
 PATCH_NIRI=1
 PATCH_APPS=1
 INSTALL_SDDM=0
 INSTALL_GREETER=0
 SUPER_TAP=0
 STRIP_PLYMOUTH=0
-CHOICE_SDDM=0
-CHOICE_GREETER=0
 
 usage() {
   cat <<'EOF'
@@ -110,8 +108,8 @@ while (($#)); do
     --no-niri) PATCH_NIRI=0 ;;
     --apps) PATCH_APPS=1 ;;
     --no-apps) PATCH_APPS=0 ;;
-    --sddm) INSTALL_SDDM=1; CHOICE_SDDM=1 ;;
-    --greeter) INSTALL_GREETER=1; CHOICE_GREETER=1 ;;
+    --sddm) INSTALL_SDDM=1 ;;
+    --greeter) INSTALL_GREETER=1 ;;
     --super-tap) SUPER_TAP=1 ;;
     --no-plymouth) STRIP_PLYMOUTH=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -155,8 +153,8 @@ if [[ $PROFILE == "guided" ]]; then
       PS3="Choose: "
       select lm in "Keep current DM (install SDDM theme only)" "Switch to greetd + VibeShell greeter" skip; do
         case $lm in
-          *SDDM*) CHOICE_SDDM=1; INSTALL_SDDM=1; INSTALL_GREETER=0; break ;;
-          *greetd*) CHOICE_GREETER=1; INSTALL_GREETER=1; INSTALL_SDDM=0; break ;;
+          *SDDM*) INSTALL_SDDM=1; INSTALL_GREETER=0; break ;;
+          *greetd*) INSTALL_GREETER=1; INSTALL_SDDM=0; break ;;
           skip) break ;;
         esac
       done
@@ -179,12 +177,12 @@ esac
 # custom checkboxes simple
 if ((DO_CUSTOM)); then
   echo "Custom selection:"
-  confirm "Install packages?" && DO_MIN=1 || DO_MIN=0
+  confirm "Install packages?"
   confirm "Wire niri include?" && PATCH_NIRI=1 || PATCH_NIRI=0
   confirm "Wire app theming (kitty/GTK/VSCode/spicetify)?" && PATCH_APPS=1 || PATCH_APPS=0
   confirm "Add balanced utils (grim/slurp/wl-clipboard/cliphist/libnotify)?" && PKGS+=("${BALANCED_PKGS[@]}")
-  if confirm "SDDM theme only?"; then CHOICE_SDDM=1; INSTALL_SDDM=1; fi
-  if confirm "Setup greetd greeter (replaces DM)?"; then CHOICE_GREETER=1; INSTALL_GREETER=1; fi
+  if confirm "SDDM theme only?"; then INSTALL_SDDM=1; fi
+  if confirm "Setup greetd greeter (replaces DM)?"; then INSTALL_GREETER=1; fi
   if confirm "Enable Super-tap?"; then SUPER_TAP=1; PKGS+=(keyd); fi
   if confirm "Strip plymouth/silent boot?"; then STRIP_PLYMOUTH=1; fi
 fi

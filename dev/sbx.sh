@@ -74,7 +74,7 @@ case "$cmd" in
         echo "niri:     $(niri_pid || echo DOWN)"
         echo "shell:    $(pgrep -f "quickshell -p $QML" | head -1 || echo DOWN)"
         sandbox_env
-        for i in $(seq 1 30); do
+        for _ in $(seq 1 30); do
             out=$(quickshell ipc -p "$QML" call theming dir 2>/dev/null || true)
             case "$out" in *app-themes*) echo "ipc:      READY ($out)"; exit 0;; esac
             sleep 0.4
