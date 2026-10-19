@@ -53,7 +53,7 @@ jobs:
             exit 1
           fi
 
-          ./dev/test.sh
+          bash dev/test.sh
 
       - name: Logs on failure
         if: failure()
