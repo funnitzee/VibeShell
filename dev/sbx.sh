@@ -20,18 +20,28 @@ niri_pid() {
     pgrep -f "niri -c $SB/niri.kdl" | head -1 || true
 }
 
-# quickshell inherits the nested niri's *own* Wayland socket (wayland-2, ...),
-# not niri's inherited one (wayland-1). Read env off the shell process, falling
-# back to niri's, so IPC targets the display the instance actually lives on.
+env_of() { tr '\0' '\n' < "/proc/$1/environ" 2>/dev/null; }
+env_get() { printf '%s\n' "$1" | sed -n "s/^$2=//p"; }
+
+# The isolated XDG dirs and the private session bus come from the nested niri
+# (run-nested.sh exports them, then execs niri). The display is the shell's own
+# Wayland socket (wayland-2, ...), not niri's inherited one (wayland-1), so IPC
+# must target that. Re-export both on every call *and* before respawning the
+# shell — otherwise a restart would inherit this script's env and read/write the
+# real ~/.config instead of the sandbox.
 sandbox_env() {
-    local pid qs; qs=$(pgrep -f "quickshell -p $QML" | head -1 || true)
-    pid=${qs:-$(niri_pid)}
-    [[ -n "$pid" ]] || { echo "sandbox not running" >&2; return 1; }
-    local env; env=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null)
-    DBUS_SESSION_BUS_ADDRESS=$(printf '%s\n' "$env" | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p')
-    WAYLAND_DISPLAY=$(printf '%s\n' "$env" | sed -n 's/^WAYLAND_DISPLAY=//p')
-    NIRI_SOCKET=$(printf '%s\n' "$env" | sed -n 's/^NIRI_SOCKET=//p')
-    export DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY NIRI_SOCKET
+    local qs niri; qs=$(pgrep -f "quickshell -p $QML" | head -1 || true); niri=$(niri_pid)
+    local base; base=${niri:-$qs}
+    [[ -n "$base" ]] || { echo "sandbox not running" >&2; return 1; }
+    local b n; b=$(env_of "$niri"); n=$(env_of "$qs")
+    local v val
+    for v in XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME XDG_DATA_HOME \
+             XDG_RUNTIME_DIR VIBESHELL_CONFIG_DIR DBUS_SESSION_BUS_ADDRESS; do
+        val=$(env_get "$b" "$v"); [[ -n "$val" ]] && export "$v=$val"
+    done
+    WAYLAND_DISPLAY=$(env_get "$n" WAYLAND_DISPLAY); WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-$(env_get "$b" WAYLAND_DISPLAY)}
+    NIRI_SOCKET=$(env_get "$n" NIRI_SOCKET); NIRI_SOCKET=${NIRI_SOCKET:-$(env_get "$b" NIRI_SOCKET)}
+    export WAYLAND_DISPLAY NIRI_SOCKET
 }
 
 cmd=${1:-status}
