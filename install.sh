@@ -1,527 +1,382 @@
 #!/usr/bin/env bash
-# VibeShell installer for Arch / CachyOS.
-#
-# Recommended (download, read, run):
-#   curl -fsSL https://raw.githubusercontent.com/funnitzee/VibeShell/main/install.sh -o install.sh
-#   less install.sh
-#   bash install.sh
-#
-# One-liner (you trust this repo):
-#   curl -fsSL https://raw.githubusercontent.com/funnitzee/VibeShell/main/install.sh | bash
-#
-# What it does:
-#   1. installs packages with pacman (asks first)
-#   2. fetches the repo to ~/.local/share/vibeshell (or uses the local checkout it runs from)
-#   3. creates ~/.config/vibeshell/settings.json if missing (never overwrites it)
-#   4. writes ~/.config/niri/vibeshell.kdl that starts the shell with niri
-#   5. with --niri: adds `include "vibeshell.kdl"` to your niri config.kdl
-#   6. with --apps: wires kitty/GTK include lines and VS Code/spicetify theme
-#      symlinks so external apps follow the VibeShell palette (backed up first)
-#   7. with --sddm: installs the VibeShell SDDM theme and selects it
-#   8. with --greeter: installs greetd and configures the niri/VibeShell greeter
-#   9. with --super-tap: installs keyd so a lone Super key opens the palette
-#      (installing a package does not start it: see the hints at the end)
-#
-# Every file it would overwrite is backed up first as <file>.bak.<timestamp>.
+# VibeShell interactive installer for Arch / CachyOS
+# Guided TUI by default; flags kept for automation/CI
 
 set -euo pipefail
 
 REPO_URL="https://github.com/funnitzee/VibeShell.git"
 PREFIX="${VIBESHELL_PREFIX:-$HOME/.local/share/vibeshell}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-# Base packages every VibeShell install needs:
-#   niri + quickshell + font   the compositor and the shell itself
-#   kitty                      terminal (Mod+Return, :term)
-#   brightnessctl              brightness keys / quick settings
-#   swaybg                     wallpaper (`:wallpaper`; swww is AUR only)
-#   wireplumber                `wpctl`: volume keys, audio OSD (pulls pipewire)
-#   networkmanager             Wi-Fi panel (Quickshell.Networking talks to NM)
-#   bluez                      Bluetooth panel (Quickshell.Bluetooth talks to bluez)
-#   upower                     battery in the dashboard/quick settings
-#   matugen                    optional colour sync (theming.matugen, on by default)
-PACKAGES=(git niri quickshell ttf-jetbrains-mono-nerd brightnessctl kitty swaybg
-    wireplumber networkmanager bluez upower matugen)
+
+# Base minimal packages
+BASE_PKGS=(git niri quickshell ttf-jetbrains-mono-nerd kitty brightnessctl swaybg wireplumber networkmanager bluez upower matugen)
+BALANCED_PKGS=(grim slurp wl-clipboard cliphist libnotify)
+FULL_PKGS=(sddm greetd hyprpolkitagent keyd)
 
 ASSUME_YES=0
-INSTALL_PACKAGES=1
-PATCH_NIRI=0
-PATCH_APPS=0
+DRY_RUN=0
+GUIDED=1
+PROFILE="guided"
+DO_MIN=0; DO_BAL=0; DO_FULL=0; DO_CUSTOM=0
+PATCH_NIRI=1
+PATCH_APPS=1
 INSTALL_SDDM=0
 INSTALL_GREETER=0
 SUPER_TAP=0
 STRIP_PLYMOUTH=0
+CHOICE_SDDM=0
+CHOICE_GREETER=0
 
 usage() {
-    cat <<'EOF'
+  cat <<'EOF'
 Usage: install.sh [options]
 
-  -y, --yes          do not ask for confirmation
-      --no-packages  skip the pacman step
-      --niri         add `include "vibeshell.kdl"` to your niri config.kdl (backed up first)
-      --apps         wire kitty/GTK includes + VS Code/spicetify theme symlinks (backed up first)
-      --sddm         install the VibeShell SDDM theme and select it (backed up first, needs sudo)
-      --greeter      install greetd and configure the niri/VibeShell greeter (backed up first, needs sudo)
-      --super-tap    make a lone Super key open the palette (installs keyd, backed up first)
-      --no-plymouth  remove plymouth and the silent boot (quiet/splash) from the kernel cmdline
-  -h, --help         show this help
+  -y, --yes        non-interactive (needs profile or flags)
+  -d, --dry-run    show what would be done
+  --guided         force guided TUI (default if TTY)
+  --profile P      minimal|balanced|full|custom
+  --niri           include vibeshell.kdl
+  --no-niri        skip
+  --apps           wire kitty/GTK/VSCode/spicetify
+  --no-apps        skip
+  --sddm           install SDDM theme+config
+  --greeter        setup greetd greeter
+  --super-tap      enable Super-tap (keyd + F15)
+  --no-plymouth    strip plymouth/silent boot
+  -h, --help       show help
 EOF
 }
 
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m==>\033[0m %s\n' "$*" >&2; }
-die() {
-    printf '\033[1;31m==>\033[0m %s\n' "$*" >&2
-    exit 1
-}
+err() { printf '\033[1;31m==>\033[0m %s\n' "$*" >&2; }
+die() { err "$*"; exit 1; }
+has() { command -v "$1" >/dev/null 2>&1; }
 
 confirm() {
-    ((ASSUME_YES)) && return 0
-    local ans
-    # Read from the terminal so this also works when the script is piped into bash.
-    read -r -p "$1 [y/N] " ans </dev/tty || return 1
-    [[ $ans == [yY]* ]]
+  ((ASSUME_YES)) && return 0
+  local ans
+  read -r -p "$1 [y/N] " ans </dev/tty || return 1
+  [[ $ans == [yY]* ]]
 }
 
-# backup <file>: copy it to <file>.bak.<timestamp> if it exists.
 backup() {
-    local f=$1 b
-    [[ -e $f ]] || return 0
-    b="$f.bak.$(date +%Y%m%d-%H%M%S)"
-    cp -a "$f" "$b"
-    log "Backed up $f -> $b"
+  local f=$1 b
+  [[ -e $f ]] || return 0
+  b="$f.bak.$(date +%Y%m%d-%H%M%S)"
+  ((DRY_RUN)) && { log "[DRY] backup $f -> $b"; return 0; }
+  cp -a "$f" "$b"
+  log "Backed up $f -> $b"
 }
 
-# ensure_line <file> <line>: create <file> if needed and append <line> once,
-# backing the file up first when it already exists.
 ensure_line() {
-    local f=$1 line=$2
-    if [[ -e $f ]] && grep -qxF "$line" "$f"; then
-        log "$f already has the VibeShell line"
-        return 0
-    fi
-    mkdir -p "$(dirname "$f")"
-    [[ -e $f ]] && backup "$f"
-    printf '\n%s\n' "$line" >>"$f"
-    log "Added VibeShell line to $f"
+  local f=$1 line=$2
+  if [[ -e $f ]] && grep -qxF "$line" "$f"; then
+    log "$f already has line"
+    return 0
+  fi
+  ((DRY_RUN)) && { log "[DRY] ensure_line $f: $line"; return 0; }
+  mkdir -p "$(dirname "$f")"
+  [[ -e $f ]] && backup "$f"
+  printf '\n%s\n' "$line" >>"$f"
+  log "Added to $f"
 }
 
-# link_theme <link> <target>: point <link> at <target>, backing up any existing
-# entry first. Used for apps that cannot include a file at runtime.
 link_theme() {
-    local link=$1 target=$2
-    if [[ -L $link && "$(readlink "$link")" == "$target" ]]; then
-        log "$link already points at $target"
-        return 0
-    fi
-    if [[ -e $link || -L $link ]]; then
-        backup "$link"
-        rm -rf "$link"
-    fi
-    mkdir -p "$(dirname "$link")"
-    ln -s "$target" "$link"
-    log "Linked $link -> $target"
+  local link=$1 target=$2
+  if [[ -L $link && "$(readlink "$link")" == "$target" ]]; then
+    log "$link ok"
+    return 0
+  fi
+  ((DRY_RUN)) && { log "[DRY] link $link -> $target"; return 0; }
+  if [[ -e $link || -L $link ]]; then backup "$link"; rm -rf "$link"; fi
+  mkdir -p "$(dirname "$link")"; ln -s "$target" "$link"; log "Linked $link"
 }
 
 while (($#)); do
-    case $1 in
-    -y | --yes) ASSUME_YES=1 ;;
-    --no-packages) INSTALL_PACKAGES=0 ;;
+  case $1 in
+    -y|--yes) ASSUME_YES=1; GUIDED=0 ;;
+    -d|--dry-run) DRY_RUN=1 ;;
+    --guided) GUIDED=1 ;;
+    --profile)
+      shift; PROFILE=$1; GUIDED=0
+      [[ $PROFILE =~ ^(minimal|balanced|full|custom)$ ]] || die "bad profile: $PROFILE"
+      ;;
     --niri) PATCH_NIRI=1 ;;
+    --no-niri) PATCH_NIRI=0 ;;
     --apps) PATCH_APPS=1 ;;
-    --sddm) INSTALL_SDDM=1 ;;
-    --greeter) INSTALL_GREETER=1 ;;
+    --no-apps) PATCH_APPS=0 ;;
+    --sddm) INSTALL_SDDM=1; CHOICE_SDDM=1 ;;
+    --greeter) INSTALL_GREETER=1; CHOICE_GREETER=1 ;;
     --super-tap) SUPER_TAP=1 ;;
     --no-plymouth) STRIP_PLYMOUTH=1 ;;
-    -h | --help)
-        usage
-        exit 0
-        ;;
-    *)
-        usage >&2
-        die "Unknown option: $1"
-        ;;
-    esac
-    shift
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "Unknown: $1" ;;
+  esac
+  shift
 done
 
-# A display manager / extra daemon is only pulled in when its flag is used, so a
-# plain install never swaps the user's login manager by accident.
-((INSTALL_SDDM)) && PACKAGES+=(sddm)
-((INSTALL_GREETER)) && PACKAGES+=(greetd)
-((SUPER_TAP)) && PACKAGES+=(keyd)
-
-[[ $EUID -ne 0 ]] || die "Do not run this as root."
-
-# 1. Packages
-if ((INSTALL_PACKAGES)); then
-    command -v pacman >/dev/null || die "pacman not found. This installer targets Arch / CachyOS."
-    log "Packages: ${PACKAGES[*]}"
-    if confirm "Install them with 'sudo pacman -S --needed'?"; then
-        sudo pacman -S --needed "${PACKAGES[@]}"
-    else
-        warn "Skipping packages. The shell will not start without quickshell and niri."
-    fi
+if [[ -t 1 && $GUIDED -eq 1 ]]; then
+  PROFILE="guided"
 fi
 
-# 2. Source: use the local checkout if we run from one, otherwise clone.
-# When piped into bash (curl | bash) BASH_SOURCE is empty, so we always clone then.
+# Pre-flight
+[[ $EUID -ne 0 ]] || die "Do not run as root."
+command -v pacman >/dev/null || die "pacman required (Arch/CachyOS)."
+
+# Guided
+if [[ $PROFILE == "guided" ]]; then
+  echo "VibeShell interactive installer"
+  echo "================================"
+  if confirm "Show full summary before changes? (recommended)"; then :; fi
+  if ! has whiptail && ! has gum; then
+    warn "No whiptail/gum - using simple prompts"
+  fi
+  # simple menu fallback
+  PS3="Select profile: "
+  select p in minimal balanced full custom quit; do
+    case $p in
+      minimal|balanced|full|custom) PROFILE=$p; break ;;
+      quit) exit 0 ;;
+    esac
+  done
+  case $PROFILE in
+    minimal)
+      PATCH_NIRI=1; PATCH_APPS=1; INSTALL_SDDM=0; INSTALL_GREETER=0; SUPER_TAP=0 ;;
+    balanced)
+      PATCH_NIRI=1; PATCH_APPS=1; INSTALL_SDDM=0; INSTALL_GREETER=0; SUPER_TAP=0 ;;
+    full)
+      PATCH_NIRI=1; PATCH_APPS=1; INSTALL_SDDM=0; INSTALL_GREETER=0; SUPER_TAP=0
+      echo "Login method:"
+      PS3="Choose: "
+      select lm in "Keep current DM (install SDDM theme only)" "Switch to greetd + VibeShell greeter" skip; do
+        case $lm in
+          *SDDM*) CHOICE_SDDM=1; INSTALL_SDDM=1; INSTALL_GREETER=0; break ;;
+          *greetd*) CHOICE_GREETER=1; INSTALL_GREETER=1; INSTALL_SDDM=0; break ;;
+          skip) break ;;
+        esac
+      done
+      if confirm "Enable Super-tap (lone Super -> palette)?"; then SUPER_TAP=1; fi ;;
+    custom)
+      DO_CUSTOM=1 ;;
+  esac
+fi
+
+# apply profile packages
+PKGS=("${BASE_PKGS[@]}")
+case $PROFILE in
+  balanced|full) PKGS+=("${BALANCED_PKGS[@]}") ;;
+  custom) : ;;
+esac
+case $PROFILE in
+  full) PKGS+=("${FULL_PKGS[@]}") ;;
+esac
+
+# custom checkboxes simple
+if ((DO_CUSTOM)); then
+  echo "Custom selection:"
+  confirm "Install packages?" && DO_MIN=1 || DO_MIN=0
+  confirm "Wire niri include?" && PATCH_NIRI=1 || PATCH_NIRI=0
+  confirm "Wire app theming (kitty/GTK/VSCode/spicetify)?" && PATCH_APPS=1 || PATCH_APPS=0
+  confirm "Add balanced utils (grim/slurp/wl-clipboard/cliphist/libnotify)?" && PKGS+=("${BALANCED_PKGS[@]}")
+  if confirm "SDDM theme only?"; then CHOICE_SDDM=1; INSTALL_SDDM=1; fi
+  if confirm "Setup greetd greeter (replaces DM)?"; then CHOICE_GREETER=1; INSTALL_GREETER=1; fi
+  if confirm "Enable Super-tap?"; then SUPER_TAP=1; PKGS+=(keyd); fi
+  if confirm "Strip plymouth/silent boot?"; then STRIP_PLYMOUTH=1; fi
+fi
+
+# ensure keyd present if supertap
+((SUPER_TAP)) && PKGS+=(keyd)
+((INSTALL_SDDM)) && PKGS+=(sddm)
+((INSTALL_GREETER)) && PKGS+=(greetd)
+
+# summary
+log "Profile: $PROFILE"
+log "Packages: ${PKGS[*]}"
+log "patch_niri=$PATCH_NIRI patch_apps=$PATCH_APPS sddm=$INSTALL_SDDM greetd=$INSTALL_GREETER supertap=$SUPER_TAP plymouth_strip=$STRIP_PLYMOUTH"
+((DRY_RUN)) && { warn "DRY RUN - no changes"; exit 0; }
+if ! confirm "Proceed?"; then exit 0; fi
+
+# Packages
+if (( ${#PKGS[@]} )); then
+  log "Installing: ${PKGS[*]}"
+  if confirm "Run 'sudo pacman -S --needed'?"; then
+    ((DRY_RUN)) || sudo pacman -S --needed "${PKGS[@]}"
+  fi
+fi
+
+# Source
 SCRIPT_DIR=""
 if [[ -n ${BASH_SOURCE[0]:-} && -f ${BASH_SOURCE[0]} ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 if [[ -n $SCRIPT_DIR && -f $SCRIPT_DIR/shell/shell.qml ]]; then
-    SRC="$SCRIPT_DIR"
-    log "Using local checkout: $SRC"
+  SRC="$SCRIPT_DIR"; log "Using local: $SRC"
 else
-    command -v git >/dev/null || die "git is required to fetch VibeShell."
-    if [[ -d $PREFIX/.git ]]; then
-        log "Updating $PREFIX"
-        git -C "$PREFIX" pull --ff-only
-    else
-        log "Cloning into $PREFIX"
-        mkdir -p "$(dirname "$PREFIX")"
-        git clone --depth 1 "$REPO_URL" "$PREFIX"
-    fi
-    SRC="$PREFIX"
+  has git || die "git required"
+  if [[ -d $PREFIX/.git ]]; then
+    log "Updating $PREFIX"; ((DRY_RUN)) || git -C "$PREFIX" pull --ff-only
+  else
+    log "Cloning to $PREFIX"; ((DRY_RUN)) || { mkdir -p "$(dirname "$PREFIX")"; git clone --depth 1 "$REPO_URL" "$PREFIX"; }
+  fi
+  SRC="$PREFIX"
 fi
 
-# 3. User settings (never overwritten)
-mkdir -p "$CONFIG_HOME/vibeshell"
-if [[ ! -e $CONFIG_HOME/vibeshell/settings.json ]]; then
-    echo '{}' >"$CONFIG_HOME/vibeshell/settings.json"
-    log "Created $CONFIG_HOME/vibeshell/settings.json (empty: shipped defaults apply)"
-fi
+# Settings
+((DRY_RUN)) || { mkdir -p "$CONFIG_HOME/vibeshell"; [[ -e $CONFIG_HOME/vibeshell/settings.json ]] || echo '{}' >"$CONFIG_HOME/vibeshell/settings.json"; log "settings ok"; }
 
-# 4. niri snippet that starts the shell
+# niri snippet
 NIRI_DIR="$CONFIG_HOME/niri"
 SNIPPET="$NIRI_DIR/vibeshell.kdl"
 mkdir -p "$NIRI_DIR"
 SNIPPET_BODY=$(
-    cat <<EOF
-// Managed by the VibeShell installer: re-running it overwrites this file.
+  cat <<EOF
+// Managed by VibeShell installer
 spawn-at-startup "quickshell" "-p" "$SRC/shell"
 
 binds {
 EOF
-    # Only add a bind when the same key is not already bound elsewhere in the
-    # niri config (dms, config.kdl...): niri refuses to load a config with
-    # duplicate keybinds, so adding ours blindly would break the session.
-    bind_taken() {
-        local key=$1 f esc
-        esc=${key//+/\\+}
-        while IFS= read -r f; do
-            [[ $f == "$SNIPPET" ]] && continue
-            grep -qE "^[[:space:]]*${esc}([[:space:]]|\{)" "$f" && return 0
-        done < <(find "$NIRI_DIR" -type f -name '*.kdl' 2>/dev/null)
-        return 1
-    }
-    add_bind() {
-        local key=$1 rest=$2
-        if bind_taken "$key"; then
-            warn "Skipping $key in vibeshell.kdl: already bound elsewhere in $NIRI_DIR"
-        else
-            printf '    %s %s\n' "$key" "$rest"
-        fi
-    }
-    ipc='spawn "quickshell" "ipc" "-p" "'"$SRC"'/shell" "call"'
-    add_bind "Mod+Semicolon" "hotkey-overlay-title=\"VibeShell palette\" { $ipc \"palette\" \"toggle\"; }"
-    # A lone Super key (keyd, see --super-tap) sends F15 and opens the palette.
-    add_bind "F15" "hotkey-overlay-title=\"VibeShell palette\" { $ipc \"palette\" \"toggle\"; }"
-    add_bind "Mod+P" "hotkey-overlay-title=\"VibeShell dashboard\" { $ipc \"dashboard\" \"toggle\"; }"
-    add_bind "Mod+S" "hotkey-overlay-title=\"VibeShell quick settings\" { $ipc \"quick\" \"toggle\"; }"
-    add_bind "Mod+Shift+S" "hotkey-overlay-title=\"VibeShell settings\" { $ipc \"settings\" \"toggle\"; }"
-    add_bind "Mod+Alt+L" "hotkey-overlay-title=\"VibeShell lock\" { $ipc \"lock\" \"lock\"; }"
-    add_bind "Mod+Return" 'hotkey-overlay-title="Terminal" { spawn "kitty"; }'
-    add_bind "XF86AudioRaiseVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }'
-    add_bind "XF86AudioLowerVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }'
-    add_bind "XF86AudioMute" 'allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }'
-    cat <<EOF
+  bind_taken() {
+    local key=$1 f esc; esc=${key//+/\\+}
+    while IFS= read -r f; do [[ $f == "$SNIPPET" ]] && continue; grep -qE "^[[:space:]]*${esc}([[:space:]]|\{)" "$f" && return 0; done < <(find "$NIRI_DIR" -type f -name '*.kdl' 2>/dev/null)
+    return 1
+  }
+  add_bind() {
+    local key=$1 rest=$2
+    if bind_taken "$key"; then warn "skip $key (taken)"; else printf '    %s %s\n' "$key" "$rest"; fi
+  }
+  ipc='spawn "quickshell" "ipc" "-p" "'"$SRC"'/shell" "call"'
+  add_bind "Mod+Semicolon" "hotkey-overlay-title=\"VibeShell palette\" { $ipc \"palette\" \"toggle\"; }"
+  add_bind "F15" "hotkey-overlay-title=\"VibeShell palette\" { $ipc \"palette\" \"toggle\"; }"
+  add_bind "Mod+P" "hotkey-overlay-title=\"VibeShell dashboard\" { $ipc \"dashboard\" \"toggle\"; }"
+  add_bind "Mod+S" "hotkey-overlay-title=\"VibeShell quick settings\" { $ipc \"quick\" \"toggle\"; }"
+  add_bind "Mod+Shift+S" "hotkey-overlay-title=\"VibeShell settings\" { $ipc \"settings\" \"toggle\"; }"
+  add_bind "Mod+Alt+L" "hotkey-overlay-title=\"VibeShell lock\" { $ipc \"lock\" \"lock\"; }"
+  add_bind "Mod+Return" 'hotkey-overlay-title="Terminal" { spawn "kitty"; }'
+  add_bind "XF86AudioRaiseVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }'
+  add_bind "XF86AudioLowerVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }'
+  add_bind "XF86AudioMute" 'allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }'
+  cat <<EOF
 }
 EOF
 )
-if [[ -f $SNIPPET ]] && [[ "$(cat "$SNIPPET")" == "$SNIPPET_BODY" ]]; then
-    log "$SNIPPET is up to date"
-else
-    backup "$SNIPPET"
-    printf '%s\n' "$SNIPPET_BODY" >"$SNIPPET"
-    log "Wrote $SNIPPET"
+if [[ ! -f $SNIPPET ]] || [[ "$(cat "$SNIPPET")" != "$SNIPPET_BODY" ]]; then
+  backup "$SNIPPET"
+  ((DRY_RUN)) || printf '%s\n' "$SNIPPET_BODY" >"$SNIPPET"
+  log "wrote $SNIPPET"
 fi
-
-# 5. Hook the snippet into the niri config
-CFG="$NIRI_DIR/config.kdl"
-INCLUDE='include "vibeshell.kdl"'
 if ((PATCH_NIRI)); then
-    if [[ ! -f $CFG ]]; then
-        warn "No $CFG yet. Start niri once to generate it, then re-run with --niri."
-    elif grep -qxF "$INCLUDE" "$CFG"; then
-        log "$CFG already includes vibeshell.kdl"
-    else
-        backup "$CFG"
-        printf '\n%s\n' "$INCLUDE" >>"$CFG"
-        log "Added $INCLUDE to $CFG"
-    fi
-else
-    log "To start VibeShell with niri, add this line to $CFG (or re-run with --niri):"
-    printf '    %s\n' "$INCLUDE"
+  CFG="$NIRI_DIR/config.kdl"; INC='include "vibeshell.kdl"'
+  if [[ ! -f $CFG ]]; then warn "no $CFG - add $INC later"; else
+    if ! grep -qxF "$INC" "$CFG"; then backup "$CFG"; ((DRY_RUN)) || printf '\n%s\n' "$INC" >>"$CFG"; log "added include"; else log "include exists"; fi
+  fi
 fi
 
-# 6. App theming: let external apps follow the VibeShell palette.
-# The shell writes theme files under ~/.config/vibeshell/app-themes/<app>/.
-# kitty and GTK get an include/import (live), VS Code and spicetify get a
-# symlink into their own config (they cannot include a file at runtime).
+# apps
 THEME_DIR="$CONFIG_HOME/vibeshell/app-themes"
 if ((PATCH_APPS)); then
-    # kitty
-    if command -v kitty >/dev/null || [[ -d $CONFIG_HOME/kitty ]]; then
-        ensure_line "$CONFIG_HOME/kitty/kitty.conf" "include $THEME_DIR/kitty/kitty-theme.conf"
-    else
-        warn "kitty not found, skipping (install kitty, then re-run with --apps)"
-    fi
-
-    # GTK 3 + GTK 4
-    for gtk in gtk-3.0 gtk-4.0; do
-        if [[ -d $CONFIG_HOME/$gtk ]]; then
-            ensure_line "$CONFIG_HOME/$gtk/gtk.css" "@import url(\"$THEME_DIR/gtk/gtk.css\");"
-        fi
-    done
-
-    # VS Code color theme extension
-    if [[ -d $HOME/.vscode ]]; then
-        link_theme "$HOME/.vscode/extensions/vibeshell-theme" "$THEME_DIR/vscode"
-    else
-        warn "VS Code (~/.vscode) not found, skipping"
-    fi
-
-    # spicetify
-    if [[ -d $CONFIG_HOME/spicetify ]]; then
-        link_theme "$CONFIG_HOME/spicetify/Themes/VibeShell" "$THEME_DIR/spicetify"
-        if command -v spicetify >/dev/null; then
-            spicetify config current_theme VibeShell >/dev/null 2>&1 && log "spicetify: current_theme -> VibeShell"
-            command -v spotify >/dev/null && spicetify apply >/dev/null 2>&1 && log "spicetify: applied"
-        fi
-    else
-        warn "spicetify config not found, skipping"
-    fi
-
-    log "App themes live in $THEME_DIR (regenerated on every palette change)."
-else
-    log "For external app theming (kitty/GTK/VS Code/spicetify), re-run with --apps."
+  if has kitty || [[ -d $CONFIG_HOME/kitty ]]; then ensure_line "$CONFIG_HOME/kitty/kitty.conf" "include $THEME_DIR/kitty/kitty-theme.conf"; fi
+  for gtk in gtk-3.0 gtk-4.0; do [[ -d $CONFIG_HOME/$gtk ]] && ensure_line "$CONFIG_HOME/$gtk/gtk.css" "@import url(\"$THEME_DIR/gtk/gtk.css\");"; done
+  [[ -d $HOME/.vscode ]] && link_theme "$HOME/.vscode/extensions/vibeshell-theme" "$THEME_DIR/vscode"
+  if [[ -d $CONFIG_HOME/spicetify ]]; then
+    link_theme "$CONFIG_HOME/spicetify/Themes/VibeShell" "$THEME_DIR/spicetify"
+    if ! ((DRY_RUN)) && has spicetify; then spicetify config current_theme VibeShell >/dev/null 2>&1 || true; has spotify && spicetify apply >/dev/null 2>&1 || true; fi
+  fi
+  log "app theming wired"
 fi
 
-# 7. SDDM theme. Copies sddm/vibeshell to /usr/share/sddm/themes/vibeshell,
-# colours it from the active palette and selects it in /etc/sddm.conf.d.
+# sddm
 if ((INSTALL_SDDM)); then
-    if [[ ! -d /usr/share/sddm ]]; then
-        warn "SDDM not installed, skipping the theme."
-    elif confirm "Install the VibeShell SDDM theme and set it as default?"; then
-        # Active palette: name from settings.json, colours from palettes/<name>.json.
-        # `|| true`: grep exits 1 when key is absent (e.g. empty settings.json) and
-        # the script runs under `set -e -o pipefail`.
-        pal=$(grep -o '"palette": *"[^"]*"' "$CONFIG_HOME/vibeshell/settings.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/') || true
-        pal=${pal:-monochrome}
-        pal_file="$SRC/shell/palettes/$pal.json"
-        json_get() { grep -o "\"$2\": *\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"\(#[0-9a-fA-F]*\)".*/\1/' || true; }
-        if [[ -f $pal_file ]]; then
-            c_bg=$(json_get "$pal_file" bg)
-            c_fg=$(json_get "$pal_file" fg)
-            c_dim=$(json_get "$pal_file" dim)
-            c_border=$(json_get "$pal_file" border)
-            c_accent=$(json_get "$pal_file" accent)
-            c_urgent=$(json_get "$pal_file" urgent)
-        fi
-
-        theme_tmp=$(mktemp -d)
-        cp -r "$SRC/sddm/vibeshell/." "$theme_tmp/"
-        # Prefer the live theme.conf the shell generates (matches the palette,
-        # including custom palettes); fall back to the JSON above.
-        if [[ -f $THEME_DIR/sddm/theme.conf ]]; then
-            cp "$THEME_DIR/sddm/theme.conf" "$theme_tmp/theme.conf"
-        else
-            cat >"$theme_tmp/theme.conf" <<EOF
+  if [[ -d /usr/share/sddm ]]; then
+    pal=$(grep -o '"palette": *"[^"]*"' "$CONFIG_HOME/vibeshell/settings.json" 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/') || true
+    pal=${pal:-monochrome}; pal_file="$SRC/shell/palettes/$pal.json"
+    c_bg="#0a0a0a"; c_fg="#e8e8e8"; c_dim="#8a8a8a"; c_border="#2e2e2e"; c_accent="#ffffff"; c_urgent="#ffffff"
+    if [[ -f $pal_file ]]; then
+      json_get(){ grep -o "\"$2\": *\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"\(#[0-9a-fA-F]*\)".*/\1/' || true; }
+      c_bg=$(json_get "$pal_file" bg); c_fg=$(json_get "$pal_file" fg); c_dim=$(json_get "$pal_file" dim); c_border=$(json_get "$pal_file" border); c_accent=$(json_get "$pal_file" accent); c_urgent=$(json_get "$pal_file" urgent)
+    fi
+    theme_tmp=$(mktemp -d)
+    cp -r "$SRC/sddm/vibeshell/." "$theme_tmp/"
+    if [[ -f $THEME_DIR/sddm/theme.conf ]]; then cp "$THEME_DIR/sddm/theme.conf" "$theme_tmp/theme.conf"
+    else cat >"$theme_tmp/theme.conf" <<EOF
 [General]
-bg=${c_bg:-#0a0a0a}
-fg=${c_fg:-#e8e8e8}
-dim=${c_dim:-#8a8a8a}
-border=${c_border:-#2e2e2e}
-accent=${c_accent:-#ffffff}
-urgent=${c_urgent:-#ffffff}
+bg=${c_bg}
+fg=${c_fg}
+dim=${c_dim}
+border=${c_border}
+accent=${c_accent}
+urgent=${c_urgent}
 font=JetBrainsMono Nerd Font
 EOF
-        fi
-
-        dest=/usr/share/sddm/themes/vibeshell
-        if [[ -e $dest ]]; then
-            sudo cp -a "$dest" "$dest.bak.$(date +%Y%m%d-%H%M%S)"
-        fi
-        sudo mkdir -p "$dest"
-        sudo cp -a "$theme_tmp/." "$dest/"
-        rm -rf "$theme_tmp"
-
-        conf=/etc/sddm.conf.d/vibeshell.conf
-        sudo mkdir -p /etc/sddm.conf.d
-        if [[ -e $conf ]]; then
-            sudo cp -a "$conf" "$conf.bak.$(date +%Y%m%d-%H%M%S)"
-        fi
-        printf '[Theme]\nCurrent=vibeshell\n' | sudo tee "$conf" >/dev/null
-        log "SDDM theme installed ($pal palette) and selected in $conf"
     fi
-else
-    log "For a VibeShell SDDM theme, re-run with --sddm."
+    dest=/usr/share/sddm/themes/vibeshell
+    ((DRY_RUN)) || { [[ -e $dest ]] && sudo cp -a "$dest" "$dest.bak.$(date +%Y%m%d-%H%M%S)"; sudo mkdir -p "$dest"; sudo cp -a "$theme_tmp/." "$dest/"; }
+    rm -rf "$theme_tmp"
+    conf=/etc/sddm.conf.d/vibeshell.conf
+    ((DRY_RUN)) || { sudo mkdir -p /etc/sddm.conf.d; [[ -e $conf ]] && sudo cp -a "$conf" "$conf.bak.$(date +%Y%m%d-%H%M%S)"; printf '[Theme]\nCurrent=vibeshell\n' | sudo tee "$conf" >/dev/null; }
+    log "sddm theme ready"
+  else warn "sddm not installed"; fi
 fi
 
-# 8. Greeter: greetd + a minimal niri session that runs VibeShell as the login
-# greeter. greetd runs its session as the unprivileged "greeter" user, so the
-# shell is copied to a world-readable system path the greeter can read.
+# greetd
 if ((INSTALL_GREETER)); then
-    if ! command -v greetd >/dev/null; then
-        warn "greetd is not installed, skipping the greeter (re-run with packages enabled)."
-    elif ! command -v niri >/dev/null; then
-        warn "niri is not installed; the greeter session needs it. Skipping."
-    elif confirm "Install the VibeShell greeter and configure greetd for it?"; then
-        GREETER_SHELL=/usr/local/share/vibeshell/shell
-        sudo mkdir -p "$(dirname "$GREETER_SHELL")"
-        sudo rm -rf "$GREETER_SHELL"
-        sudo cp -r "$SRC/shell" "$GREETER_SHELL"
-        log "Copied the shell to $GREETER_SHELL (world-readable for the greeter user)."
-
-        GKDIR=/etc/greetd
-        sudo mkdir -p "$GKDIR"
-
-        # Session greetd starts: niri + quickshell. The Greeter UI takes over the
-        # screen on start (it is shown automatically when GREETD_SOCK is set).
-        kdl_tmp=$(mktemp)
-        cat >"$kdl_tmp" <<EOF
-// Managed by the VibeShell installer: runs the VibeShell greeter under niri.
-hotkey-overlay {
-    skip-at-startup
-}
-
+  if ! has greetd || ! has niri; then warn "need greetd+niri"; else
+    GREETER_SHELL=/usr/local/share/vibeshell/shell
+    ((DRY_RUN)) || { sudo mkdir -p "$(dirname "$GREETER_SHELL")"; sudo rm -rf "$GREETER_SHELL"; sudo cp -r "$SRC/shell" "$GREETER_SHELL"; log "copied greeter shell"; }
+    GKDIR=/etc/greetd; kdl_tmp=$(mktemp)
+    cat >"$kdl_tmp" <<EOF
+hotkey-overlay { skip-at-startup }
 spawn-at-startup "quickshell" "-p" "$GREETER_SHELL"
 EOF
-        if ! niri validate -c "$kdl_tmp" >/dev/null 2>&1; then
-            rm -f "$kdl_tmp"
-            die "Generated greeter niri config did not validate; aborting."
-        fi
-        if [[ -e $GKDIR/vibeshell-greeter.kdl ]]; then
-            sudo cp -a "$GKDIR/vibeshell-greeter.kdl" "$GKDIR/vibeshell-greeter.kdl.bak.$(date +%Y%m%d-%H%M%S)"
-        fi
-        sudo cp "$kdl_tmp" "$GKDIR/vibeshell-greeter.kdl"
-        rm -f "$kdl_tmp"
-
-        if [[ -e $GKDIR/config.toml ]]; then
-            sudo cp -a "$GKDIR/config.toml" "$GKDIR/config.toml.bak.$(date +%Y%m%d-%H%M%S)"
-        fi
-        printf '[terminal]\nvt = 1\n\n[default_session]\ncommand = "niri -c %s"\nuser = "greeter"\n' \
-            "$GKDIR/vibeshell-greeter.kdl" | sudo tee "$GKDIR/config.toml" >/dev/null
-        log "Wrote $GKDIR/config.toml and $GKDIR/vibeshell-greeter.kdl"
-
-        # Only one display manager may own the seat; greetd must replace the rest.
-        for dm in sddm gdm lightdm ly; do
-            if systemctl is-enabled --quiet "$dm" 2>/dev/null; then
-                if confirm "Disable $dm so greetd can take over the login?"; then
-                    sudo systemctl disable "$dm" 2>/dev/null || warn "Could not disable $dm"
-                    log "Disabled $dm"
-                fi
-            fi
-        done
-        if confirm "Enable greetd now (log in through the VibeShell greeter)?"; then
-            sudo systemctl enable greetd 2>/dev/null || warn "Could not enable greetd"
-            log "Enabled greetd. Reboot (or switch VT) to reach the greeter."
-        else
-            warn "greetd installed but not enabled. Enable it later: sudo systemctl enable greetd"
-        fi
-    fi
-else
-    log "For the greetd greeter, re-run with --greeter."
+    if niri validate -c "$kdl_tmp" >/dev/null 2>&1; then
+      ((DRY_RUN)) || { [[ -e $GKDIR/vibeshell-greeter.kdl ]] && sudo cp -a "$GKDIR/vibeshell-greeter.kdl" "$GKDIR/vibeshell-greeter.kdl.bak.$(date +%Y%m%d-%H%M%S)"; sudo cp "$kdl_tmp" "$GKDIR/vibeshell-greeter.kdl"; }
+      ((DRY_RUN)) || { [[ -e $GKDIR/config.toml ]] && sudo cp -a "$GKDIR/config.toml" "$GKDIR/config.toml.bak.$(date +%Y%m%d-%H%M%S)"; printf '[terminal]\nvt=1\n\n[default_session]\ncommand="niri -c %s"\nuser="greeter"\n' "$GKDIR/vibeshell-greeter.kdl" | sudo tee "$GKDIR/config.toml" >/dev/null; }
+      log "greetd configured"
+      for dm in sddm gdm lightdm ly; do
+        if systemctl is-enabled --quiet "$dm" 2>/dev/null && confirm "Disable $dm?"; then ((DRY_RUN)) || sudo systemctl disable "$dm" 2>/dev/null || true; fi
+      done
+      if confirm "Enable greetd?"; then ((DRY_RUN)) || sudo systemctl enable greetd 2>/dev/null || true; fi
+    else err "greeter kdl invalid"; fi
+    rm -f "$kdl_tmp"
+  fi
 fi
 
-# 9. Super tap: a lone Super key opens the palette while Super+key still works.
-# keyd's overload(meta, f15) sends F15 on tap; niri binds F15 to the palette.
+# supertap
 if ((SUPER_TAP)); then
-    if ! command -v keyd >/dev/null; then
-        warn "keyd is not installed."
-        if confirm "Install keyd now? (pacman -S keyd)"; then
-            sudo pacman -S --needed --noconfirm keyd
-        else
-            die "keyd is required for --super-tap."
-        fi
-    fi
-    if [[ ! -f /etc/keyd/default.conf ]] || confirm "Overwrite /etc/keyd/default.conf with the Super-tap rule?"; then
-        if [[ -f /etc/keyd/default.conf ]]; then
-            sudo cp -a /etc/keyd/default.conf "/etc/keyd/default.conf.bak.$(date +%Y%m%d-%H%M%S)"
-        fi
-        sudo mkdir -p /etc/keyd
-        sudo tee /etc/keyd/default.conf >/dev/null <<'EOF'
-# Managed by the VibeShell installer: a lone Super key opens the palette.
-# Super combined with another key keeps working normally.
+  if ! has keyd; then
+    warn "keyd missing - install via pacman"; ((DRY_RUN)) || { sudo pacman -S --needed --noconfirm keyd || true; }
+  fi
+  if [[ -f /etc/keyd/default.conf ]] && ! confirm "Overwrite /etc/keyd/default.conf?"; then
+    log "skip keyd"
+  else
+    ((DRY_RUN)) || { [[ -f /etc/keyd/default.conf ]] && sudo cp -a /etc/keyd/default.conf "/etc/keyd/default.conf.bak.$(date +%Y%m%d-%H%M%S)"; sudo mkdir -p /etc/keyd; sudo tee /etc/keyd/default.conf >/dev/null <<'EOF'
 [ids]
 *
 
 [main]
 leftmeta = overload(meta, f15)
 EOF
-        sudo systemctl enable --now keyd 2>/dev/null || warn "Could not start keyd (run 'sudo systemctl enable --now keyd')."
-        log "Super tap -> F15 configured (keyd)."
-    fi
-    log "The F15 -> palette bind lives in $SNIPPET (re-run with --niri to add it)."
-else
-    log "For Super-tap palette (a lone Super key), re-run with --super-tap."
+    sudo systemctl enable --now keyd 2>/dev/null || true; }
+    log "keyd configured"
+  fi
 fi
 
-# 10. Remove plymouth and the silent boot.
+# plymouth
 if ((STRIP_PLYMOUTH)); then
-    if ! pacman -Qq plymouth >/dev/null 2>&1 && [[ ! -f /etc/default/grub ]]; then
-        log "No plymouth and no /etc/default/grub, nothing to strip."
-    elif confirm "Remove plymouth and the silent boot (quiet/splash) from GRUB?"; then
-        if [[ -f /etc/default/grub ]]; then
-            backup_grub="/etc/default/grub.bak.$(date +%Y%m%d-%H%M%S)"
-            sudo cp -a /etc/default/grub "$backup_grub"
-            # Drop splash/quiet from the kernel command line and turn the boot
-            # verbose again (loglevel 3/4 -> 6).
-            sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)splash \?/\1/; s/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)quiet \?/\1/; s/loglevel=[0-5]/loglevel=6/' /etc/default/grub
-            log "Backed up /etc/default/grub -> $backup_grub and dropped splash/quiet (loglevel=6)."
-            if command -v grub-mkconfig >/dev/null; then
-                sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null && log "Regenerated /boot/grub/grub.cfg."
-            fi
-        fi
-        # Remove the plymouth mkinitcpio hook so the boot stays verbose.
-        if [[ -f /etc/mkinitcpio.conf ]] && grep -q 'plymouth' /etc/mkinitcpio.conf; then
-            backup_mk="/etc/mkinitcpio.conf.bak.$(date +%Y%m%d-%H%M%S)"
-            sudo cp -a /etc/mkinitcpio.conf "$backup_mk"
-            sudo sed -i 's/ plymouth//g' /etc/mkinitcpio.conf
-            log "Backed up /etc/mkinitcpio.conf -> $backup_mk and removed the plymouth hook."
-            if command -v mkinitcpio >/dev/null; then
-                sudo mkinitcpio -P >/dev/null && log "Rebuilt initramfs."
-            fi
-        fi
-        if pacman -Qq plymouth >/dev/null 2>&1; then
-            if confirm "Also remove the plymouth package?"; then
-                sudo pacman -Rns --noconfirm plymouth
-            fi
-        fi
-    fi
-else
-    log "To remove plymouth / the silent boot, re-run with --no-plymouth."
+  if [[ -f /etc/default/grub ]]; then
+    ((DRY_RUN)) || { backup /etc/default/grub; sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)splash \?/\1/; s/\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)quiet \?/\1/; s/loglevel=[0-5]/loglevel=6/' /etc/default/grub; command -v grub-mkconfig >/dev/null && sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null || true; }
+  fi
+  if [[ -f /etc/mkinitcpio.conf ]] && grep -q plymouth /etc/mkinitcpio.conf; then
+    ((DRY_RUN)) || { backup /etc/mkinitcpio.conf; sudo sed -i 's/ plymouth//g' /etc/mkinitcpio.conf; command -v mkinitcpio >/dev/null && sudo mkinitcpio -P >/dev/null || true; }
+  fi
+  if pacman -Qq plymouth >/dev/null 2>&1 && confirm "Remove plymouth package?"; then ((DRY_RUN)) || sudo pacman -Rns --noconfirm plymouth || true; fi
 fi
 
-# Installing a package does not start its daemon. The Wi-Fi, Bluetooth and
-# battery panels stay empty until these run, so point that out (no sudo here).
-if command -v systemctl >/dev/null; then
-    inactive=()
-    for svc in NetworkManager bluetooth upower; do
-        if ! systemctl is-active --quiet "$svc" 2>/dev/null; then
-            inactive+=("$svc")
-        fi
-    done
-    if ((${#inactive[@]})); then
-        warn "These daemons are not running; the matching panels stay empty:"
-        warn "  sudo systemctl enable --now ${inactive[*]}"
-    fi
+# hints
+if has systemctl; then
+  inactive=(); for s in NetworkManager bluetooth upower; do systemctl is-active --quiet "$s" 2>/dev/null || inactive+=("$s"); done
+  ((${#inactive[@]})) && warn "enable: sudo systemctl enable --now ${inactive[*]}"
 fi
+has brightnessctl && ! id -nG "$USER" 2>/dev/null | grep -qw video && warn "add video group: sudo usermod -aG video $USER"
 
-# brightnessctl can only write /sys/class/backlight as a member of `video`.
-if command -v brightnessctl >/dev/null && ! id -nG "$USER" 2>/dev/null | grep -qw video; then
-    warn "Brightness keys need the 'video' group: sudo usermod -aG video $USER (then re-login)."
-fi
-
-log "Done. To try it without restarting niri: quickshell -p $SRC/shell"
+log "Done. Try: quickshell -p $SRC/shell"
