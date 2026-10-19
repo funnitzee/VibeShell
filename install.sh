@@ -360,7 +360,7 @@ if ((INSTALL_GREETER)); then
     ((DRY_RUN)) || { sudo mkdir -p "$(dirname "$GREETER_SHELL")"; sudo rm -rf "$GREETER_SHELL"; sudo cp -r "$SRC/shell" "$GREETER_SHELL"; log "copied greeter shell"; }
     GKDIR=/etc/greetd; kdl_tmp=$(mktemp)
     cat >"$kdl_tmp" <<EOF
-hotkey-overlay { skip-at-startup }
+hotkey-overlay { skip-at-startup; }
 spawn-at-startup "quickshell" "-p" "$GREETER_SHELL"
 EOF
     if niri validate -c "$kdl_tmp" >/dev/null 2>&1; then
