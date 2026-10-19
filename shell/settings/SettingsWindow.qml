@@ -17,8 +17,17 @@ Scope {
     property bool editing: false
     property string status: ""
 
+    // A live, non-persistent row appended to the list when the tool is present.
+    readonly property string powerPath: "@power-profile"
+
     // Keys walked from the shipped defaults, so the list stays in sync.
-    readonly property var rows: leaves(Settings.defaults, "")
+    readonly property var rows: {
+        const base = leaves(Settings.defaults, "");
+        return PowerProfiles.available ? base.concat([{
+                path: root.powerPath,
+                type: "choice"
+            }]) : base;
+    }
     readonly property int rowCount: rows.length
     readonly property var current: cursor >= 0 && cursor < rows.length ? rows[cursor] : null
 
@@ -67,6 +76,18 @@ Scope {
             "bar.borderWidth": {
                 step: 1,
                 min: 0
+            },
+            "notify.historyMax": {
+                step: 5,
+                min: 0
+            },
+            "night.temperature": {
+                step: 250,
+                min: 1000
+            },
+            "power.lowThreshold": {
+                step: 5,
+                min: 0
             }
         })
 
@@ -91,9 +112,11 @@ Scope {
     }
 
     function display(row) {
+        if (row.path === root.powerPath)
+            return PowerProfiles.active !== "" ? PowerProfiles.active : "-";
         const v = valueOf(row);
         if (v === undefined)
-            return "-";
+            return undefined;
         if (typeof v === "boolean")
             return v ? "on" : "off";
         return String(v);
@@ -109,6 +132,15 @@ Scope {
         if (row === null)
             return;
         root.status = "";
+
+        if (row.path === root.powerPath) {
+            const list = PowerProfiles.profiles;
+            if (list.length === 0)
+                return;
+            const at = list.indexOf(PowerProfiles.active);
+            PowerProfiles.set(list[(at + direction + list.length) % list.length]);
+            return;
+        }
 
         if (row.path === "theme.palette") {
             const list = Theme.palettes;
@@ -135,8 +167,8 @@ Scope {
 
     function startEdit() {
         const row = root.current;
-        if (row === null || row.path === "theme.palette")
-            return; // palettes are cycled, not typed
+        if (row === null || row.path === "theme.palette" || row.path === root.powerPath)
+            return; // palettes and profiles are cycled, not typed
         if (row.type === "boolean") {
             // Booleans have no free text, so Enter just toggles them.
             commit(row.path, !valueOf(row));

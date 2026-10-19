@@ -7,26 +7,26 @@
 #   makepkg --printsrcinfo > .SRCINFO
 
 pkgname=vibeshell-git
-pkgver=r0.0.0
+pkgver=r53.66fc52c
 pkgrel=1
 pkgdesc="A terminal-flavoured desktop shell for niri, built on Quickshell"
 arch=('any')
 url="https://github.com/funnitzee/VibeShell"
 license=('MIT')
-depends=('quickshell' 'niri' 'pipewire' 'wireplumber' 'networkmanager' 'bluez' 'upower')
+depends=('bluez' 'networkmanager' 'niri' 'pipewire' 'quickshell' 'upower' 'wireplumber')
 optdepends=(
-    'grim: screenshots'
-    'slurp: region screenshots'
-    'wl-clipboard: clipboard and copying shots'
-    'cliphist: clipboard history'
-    'swappy: annotate screenshots'
-    'libnotify: shell notifications'
     'brightnessctl: brightness control'
-    'swaybg: wallpapers'
-    'matugen: colour sync from the accent'
+    'cliphist: clipboard history'
     'gammastep: night light'
+    'grim: screenshots'
+    'libnotify: shell notifications'
+    'matugen: colour sync from the accent'
     'power-profiles-daemon: power profiles'
+    'slurp: region screenshots'
+    'swappy: annotate screenshots'
+    'swaybg: wallpapers'
     'ttf-jetbrains-mono-nerd: default shell font'
+    'wl-clipboard: clipboard and copying shots'
 )
 makedepends=('git')
 provides=('vibeshell')
@@ -35,12 +35,12 @@ source=("vibeshell-git::git+https://github.com/funnitzee/VibeShell.git")
 sha256sums=('SKIP')
 
 pkgver() {
-    cd VibeShell
+    cd vibeshell-git
     printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 package() {
-    cd VibeShell
+    cd vibeshell-git
 
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 

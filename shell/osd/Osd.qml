@@ -5,9 +5,37 @@ import qs
 import qs.components
 import qs.services
 
-// Small volume popup at the bottom of the screen, shown for a moment whenever
-// the system volume or mute state changes.
+// Small popup at the bottom of the screen, shown for a moment whenever the
+// volume/mute, the night light or the power profile changes. It shows whichever
+// changed last (mode).
 Scope {
+    id: root
+
+    property string mode: "volume"
+    // Power profiles are polled; ignore the first reading so startup does not
+    // flash the OSD.
+    property bool powerReady: false
+
+    function show(m) {
+        root.mode = m;
+        hideTimer.restart();
+    }
+
+    function bar(fraction) {
+        const n = Math.round(Math.max(0, Math.min(1, fraction)) * 10);
+        return `[${"█".repeat(n)}${"░".repeat(10 - n)}]`;
+    }
+
+    readonly property string osdTitle: mode === "night" ? "night light" : mode === "power" ? "power profile" : (Audio.muted ? "mute" : "volume")
+
+    readonly property string osdBody: {
+        if (mode === "night")
+            return NightLight.enabled ? `${bar((6500 - NightLight.temperature) / (6500 - 1000))} ${NightLight.temperature}K` : "[   off    ]";
+        if (mode === "power")
+            return `[ ${PowerProfiles.label()} ]`;
+        return Audio.muted ? "[  muted   ]" : `${bar(Audio.percent / 100)} ${Audio.percent}%`;
+    }
+
     PanelWindow {
         id: win
 
@@ -34,14 +62,11 @@ Scope {
 
             cols: 24
             rows: 3
-            title: Audio.muted ? "mute" : "volume"
+            title: root.osdTitle
 
             Txt {
                 anchors.centerIn: parent
-                text: {
-                    const n = Math.round(Math.max(0, Math.min(100, Audio.percent)) / 100 * 10);
-                    return Audio.muted ? "[  muted   ]" : `[${"█".repeat(n)}${"░".repeat(10 - n)}] ${Audio.percent}%`;
-                }
+                text: root.osdBody
             }
         }
     }
@@ -57,11 +82,37 @@ Scope {
         // The startup poll fills in the values; do not flash the OSD for it.
         function onVolumeChanged() {
             if (Audio.available)
-                hideTimer.restart();
+                root.show("volume");
         }
         function onMutedChanged() {
             if (Audio.available)
-                hideTimer.restart();
+                root.show("volume");
+        }
+    }
+
+    Connections {
+        target: NightLight
+
+        function onEnabledChanged() {
+            if (NightLight.available)
+                root.show("night");
+        }
+        function onTemperatureChanged() {
+            if (NightLight.available && NightLight.enabled)
+                root.show("night");
+        }
+    }
+
+    Connections {
+        target: PowerProfiles
+
+        function onActiveChanged() {
+            if (!root.powerReady) {
+                root.powerReady = true;
+                return;
+            }
+            if (PowerProfiles.available)
+                root.show("power");
         }
     }
 }

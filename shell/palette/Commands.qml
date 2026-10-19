@@ -97,6 +97,81 @@ Singleton {
         }
     }
 
+    // Tiny arithmetic evaluator: + - * / % ( ) and unary minus. Returns a number
+    // rounded to 1e-10, or null when the text is not a valid expression. No
+    // eval/Function, so it is safe to feed arbitrary palette input to it.
+    function evalExpr(input) {
+        const s = String(input).replace(/\s+/g, "");
+        let i = 0;
+        const peek = () => s[i];
+        const isDigit = c => (c >= "0" && c <= "9") || c === ".";
+        function number() {
+            const start = i;
+            while (i < s.length && isDigit(s[i])) i++;
+            if (i === start)
+                return null;
+            const v = Number(s.slice(start, i));
+            return Number.isNaN(v) ? null : v;
+        }
+        function factor() {
+            if (peek() === "+") {
+                i++;
+                return factor();
+            }
+            if (peek() === "-") {
+                i++;
+                const v = factor();
+                return v === null ? null : -v;
+            }
+            if (peek() === "(") {
+                i++;
+                const v = expr();
+                if (v === null || peek() !== ")")
+                    return null;
+                i++;
+                return v;
+            }
+            return number();
+        }
+        function term() {
+            let v = factor();
+            if (v === null)
+                return null;
+            while (peek() === "*" || peek() === "/" || peek() === "%") {
+                const op = peek();
+                i++;
+                const r = factor();
+                if (r === null)
+                    return null;
+                if (op === "*")
+                    v *= r;
+                else if (op === "/")
+                    v /= r;
+                else
+                    v %= r;
+            }
+            return v;
+        }
+        function expr() {
+            let v = term();
+            if (v === null)
+                return null;
+            while (peek() === "+" || peek() === "-") {
+                const op = peek();
+                i++;
+                const r = term();
+                if (r === null)
+                    return null;
+                v = op === "+" ? v + r : v - r;
+            }
+            return v;
+        }
+        const v = expr();
+        if (v === null || i !== s.length || !isFinite(v))
+            return null;
+        return Math.round(v * 1e10) / 1e10;
+    }
+
     function launch(entry) {
         if (entry.runInTerminal)
             Quickshell.execDetached([Settings.data.apps.terminal, "-e"].concat(Array.from(entry.command)));
@@ -118,6 +193,29 @@ Singleton {
                 Niri.focusWorkspace(Number(args[0]));
                 return {
                     close: true
+                };
+            }
+        },
+        {
+            name: "calc",
+            usage: "<expression>",
+            desc: "evaluate arithmetic, e.g. :calc (2+3)*4",
+            run: args => {
+                const expr = args.join(" ");
+                if (expr === "")
+                    return {
+                        close: false,
+                        message: "usage: :calc <expression>"
+                    };
+                const value = root.evalExpr(expr);
+                if (value === null)
+                    return {
+                        close: false,
+                        message: `cannot parse: ${expr}`
+                    };
+                return {
+                    close: false,
+                    message: `= ${value}`
                 };
             }
         },

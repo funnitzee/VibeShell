@@ -225,6 +225,7 @@ Press `Mod+;` (bound by the installer's niri snippet). Type to search applicatio
 |---|---|
 | `:ws <n>` | focus workspace n |
 | `:set <key> <value>` | change a setting live and save it, e.g. `:set bar.gap 12` |
+| `:calc <expression>` | evaluate arithmetic, e.g. `:calc (2+3)*4` |
 | `:term` | open a terminal |
 | `:reload` | reload the shell |
 | `:dash` | open the dashboard |
@@ -371,6 +372,20 @@ IPC call, `dev/sbx.sh restart` to reload just quickshell after a code change,
 `dev/sbx.sh status`, and `dev/sbx.sh shot [name]`. Don't `:lock` inside the
 sandbox — locking the nested niri disables screenshots and asks your real PAM.
 
+`dev/test.sh` is a self-contained smoke test: it copies the shell into its own
+sandbox, starts a nested niri on a private D-Bus session, and checks the command
+palette, the panels and a few services over IPC (with the optional tools stubbed
+out, so it needs nothing installed). Green run:
+
+```
+$ dev/test.sh
+palette
+  ok    :help lists commands
+  ok    :calc adds
+  ...
+passed 23, failed 0
+```
+
 ## Layout
 
 ```
@@ -383,7 +398,7 @@ shell/       Quickshell config (entry point: shell/shell.qml)
   settings/  Settings window: edit and save any setting in place
   keys/      Keybind cheatsheet overlay
   notify/    Notification popups (TUI cards)
-  osd/       On-screen display (volume)
+  osd/       On-screen display (volume, night light, power profiles)
   palette/   Command palette (UI and command backend)
   components/ Reusable pieces: TuiFrame, Spark, Gauge, Txt, BigClock, Eq
   services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications, wallpaper, screenshot, clipboard, night light, power profiles, app theming
@@ -391,7 +406,7 @@ shell/       Quickshell config (entry point: shell/shell.qml)
   defaults/  Shipped default settings
 sddm/        SDDM login theme (installed with --sddm)
 packaging/   AUR PKGBUILD (vibeshell-git)
-dev/         Nested niri sandbox and screenshot generator
+dev/         Sandbox: nested niri, screenshot generator, smoke tests (dev/test.sh)
 docs/        Screenshots used in this README
 ```
 
@@ -401,6 +416,7 @@ docs/        Screenshots used in this README
 - [x] Installer
 - [x] TUI building blocks: character-cell frames, sparklines, gauges
 - [x] Vim-style command palette (apps + commands)
+- [x] Inline calculator in the palette (`:calc`)
 - [x] Color palettes, switchable at runtime (`:theme`)
 - [x] TUI dashboard: clock, calendar, system panel, now playing
 - [x] Volume OSD and media keys
@@ -428,3 +444,6 @@ docs/        Screenshots used in this README
 - [x] User command plugins (`~/.config/vibeshell/commands/`)
 - [x] `vibeshell` CLI wrapper
 - [x] AUR `PKGBUILD` (`packaging/`, vibeshell-git)
+- [x] OSD for night light and power profiles
+- [x] Settings window: night light, power profile, DND, battery threshold
+- [x] Self-contained smoke tests (`dev/test.sh`)

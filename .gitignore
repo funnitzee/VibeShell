@@ -8,3 +8,4 @@ __pycache__/
 packaging/pkg/
 packaging/src/
 packaging/*.pkg.tar.*
+packaging/vibeshell-git/

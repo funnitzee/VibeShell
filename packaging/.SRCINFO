@@ -1,6 +1,6 @@
 pkgbase = vibeshell-git
 	pkgdesc = A terminal-flavoured desktop shell for niri, built on Quickshell
-	pkgver = r0.0.0
+	pkgver = r53.66fc52c
 	pkgrel = 1
 	url = https://github.com/funnitzee/VibeShell
 	arch = any
