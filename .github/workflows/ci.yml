@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-tests:
+    name: smoke tests
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install packages
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Sy --noconfirm --needed archlinux-keyring
+          pacman -Syu --noconfirm --needed \
+            niri quickshell weston \
+            mesa libglvnd \
+            dbus util-linux procps-ng \
+            python \
+            pipewire \
+            ttf-jetbrains-mono
+
+      - name: Smoke tests (headless Weston + nested niri)
+        run: |
+          set -euo pipefail
+          export XDG_RUNTIME_DIR=$(mktemp -d)
+          chmod 700 "$XDG_RUNTIME_DIR"
+          export WAYLAND_DISPLAY=wayland-ci
+          export LIBGL_ALWAYS_SOFTWARE=1
+
+          weston --backend=headless-backend.so --renderer=gl --no-config \
+            --socket="$WAYLAND_DISPLAY" --width=1280 --height=800 --idle-time=0 \
+            >/tmp/weston.log 2>&1 &
+          for _ in $(seq 60); do
+            [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] && break
+            sleep 0.5
+          done
+          if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+            echo "::error::weston did not start"
+            cat /tmp/weston.log
+            exit 1
+          fi
+
+          bash dev/test.sh
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          echo "===== weston ====="
+          tail -n 80 /tmp/weston.log 2>/dev/null || true
+          echo "===== niri ====="
+          tail -n 120 /tmp/vibeshell-test/niri.log 2>/dev/null || true
+          echo "===== quickshell ====="
+          tail -n 120 /tmp/vibeshell-test/qs.log 2>/dev/null || true
