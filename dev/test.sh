@@ -5,7 +5,8 @@
 # never clashes with a running dev sandbox (dev/run-nested.sh).
 #
 # Optional tools (brightnessctl, gammastep, powerprofilesctl, grim, slurp,
-# swappy, cliphist) are faked, so everything can be checked on any machine.
+# swappy, cliphist, wl-copy, wl-paste) are faked, so everything can be checked
+# on any machine.
 #
 # Needs a graphical session (WAYLAND_DISPLAY) plus niri, quickshell and
 # dbus-run-session. Usage: dev/test.sh
@@ -92,6 +93,14 @@ case "$1" in
   list) printf '42\thello from clipboard\n' ;;
   *) exit 0 ;;
 esac
+EOS
+cat >"$SB/bin/wl-copy" <<'EOS'
+#!/usr/bin/env bash
+exit 0
+EOS
+cat >"$SB/bin/wl-paste" <<'EOS'
+#!/usr/bin/env bash
+exit 0
 EOS
 cat >"$SB/bin/powerprofilesctl" <<'EOS'
 #!/usr/bin/env bash
