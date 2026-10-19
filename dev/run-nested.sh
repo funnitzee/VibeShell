@@ -21,6 +21,9 @@ export XDG_CACHE_HOME=$SB/cache
 export XDG_STATE_HOME=$SB/state
 export XDG_DATA_HOME=$SB/data
 export VIBESHELL_CONFIG_DIR=$SB/config/vibeshell
+export HOME=$SB/home
+export XDG_PICTURES_DIR=$SB/home/Pictures
+mkdir -p "$XDG_PICTURES_DIR/Screenshots"
 
 niri validate -c "$SB/niri.kdl"
 exec niri -c "$SB/niri.kdl"

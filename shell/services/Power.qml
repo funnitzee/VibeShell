@@ -15,4 +15,23 @@ Singleton {
     readonly property bool full: device.state === UPowerDeviceState.FullyCharged
 
     readonly property string stateLabel: charging ? "charging" : full ? "full" : "on battery"
+
+    // Session / machine actions for the :power menu. Everything goes through
+    // systemd/logind, so no polkit prompt for the usual desktop actions.
+    function suspend() {
+        // Lock first so the screen is not readable while suspending.
+        Quickshell.execDetached(["sh", "-c", "loginctl lock-session; sleep 0.3; systemctl suspend"]);
+    }
+
+    function logout() {
+        Quickshell.execDetached(["niri", "msg", "action", "quit"]);
+    }
+
+    function reboot() {
+        Quickshell.execDetached(["systemctl", "reboot"]);
+    }
+
+    function shutdown() {
+        Quickshell.execDetached(["systemctl", "poweroff"]);
+    }
 }

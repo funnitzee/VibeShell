@@ -292,6 +292,167 @@ Singleton {
             }
         },
         {
+            name: "power",
+            usage: "",
+            desc: "power menu: lock suspend logout reboot shutdown",
+            run: () => ({
+                close: false,
+                title: "power",
+                list: [
+                    {
+                        title: "lock",
+                        desc: "lock the screen",
+                        run: () => {
+                            Lock.lock();
+                            return { close: true };
+                        }
+                    },
+                    {
+                        title: "suspend",
+                        desc: "lock, then suspend to RAM",
+                        run: () => {
+                            Power.suspend();
+                            return { close: true };
+                        }
+                    },
+                    {
+                        title: "logout",
+                        desc: "end the niri session",
+                        run: () => {
+                            Power.logout();
+                            return { close: true };
+                        }
+                    },
+                    {
+                        title: "reboot",
+                        desc: "restart the machine",
+                        run: () => {
+                            Power.reboot();
+                            return { close: true };
+                        }
+                    },
+                    {
+                        title: "shutdown",
+                        desc: "power the machine off",
+                        run: () => {
+                            Power.shutdown();
+                            return { close: true };
+                        }
+                    }
+                ]
+            })
+        },
+        {
+            name: "shot",
+            usage: "[full|region]",
+            desc: "screenshot to ~/Pictures/Screenshots and the clipboard",
+            run: args => {
+                if (args.length > 0) {
+                    if (args[0] !== "full" && args[0] !== "region")
+                        return {
+                            close: false,
+                            message: "usage: :shot [full|region]"
+                        };
+                    return Screenshot.capture(args[0]);
+                }
+                if (!Screenshot.available)
+                    return {
+                        close: false,
+                        message: "screenshot needs grim (and slurp for region)"
+                    };
+                return {
+                    close: false,
+                    title: "screenshot",
+                    list: [
+                        {
+                            title: "full",
+                            desc: "the whole screen",
+                            run: () => Screenshot.capture("full")
+                        },
+                        {
+                            title: "region",
+                            desc: "drag to select an area",
+                            run: () => Screenshot.capture("region")
+                        }
+                    ]
+                };
+            }
+        },
+        {
+            name: "clip",
+            usage: "[clear]",
+            desc: "clipboard history (cliphist)",
+            run: args => {
+                if (!Clipboard.available)
+                    return {
+                        close: false,
+                        message: "clipboard history needs cliphist + wl-clipboard"
+                    };
+                if (args[0] === "clear") {
+                    Clipboard.clear();
+                    return {
+                        close: false,
+                        message: "clipboard history cleared"
+                    };
+                }
+                Clipboard.refresh();
+                if (Clipboard.entries.length === 0)
+                    return {
+                        close: false,
+                        message: "clipboard history is empty"
+                    };
+                return {
+                    close: false,
+                    title: "clipboard",
+                    list: Clipboard.entries.map(e => ({
+                            title: e.preview,
+                            desc: e.id,
+                            run: () => {
+                                Clipboard.copy(e.id);
+                                return { close: true };
+                            }
+                        }))
+                };
+            }
+        },
+        {
+            name: "emoji",
+            usage: "",
+            desc: "pick an emoji (copies it to the clipboard)",
+            run: () => ({
+                close: false,
+                title: "emoji",
+                list: Emoji.list.map(e => ({
+                        title: `${e.char}  ${e.name}`,
+                        desc: "",
+                        run: () => {
+                            Emoji.copy(e.char);
+                            return {
+                                close: true,
+                                message: `copied ${e.char}`
+                            };
+                        }
+                    }))
+            })
+        },
+        {
+            name: "help",
+            usage: "",
+            desc: "list all commands",
+            run: () => ({
+                close: false,
+                title: "help",
+                list: root.commands.map(c => ({
+                        title: ":" + c.name + (c.usage !== "" ? " " + c.usage : ""),
+                        desc: c.desc,
+                        run: () => ({
+                            close: false,
+                            fill: ":" + c.name + (c.usage !== "" ? " " : "")
+                        })
+                    }))
+            })
+        },
+        {
             name: "reload",
             usage: "",
             desc: "reload the shell",

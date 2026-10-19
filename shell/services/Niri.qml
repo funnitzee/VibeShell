@@ -17,8 +17,27 @@ Singleton {
     }
 
     // Run any niri action with optional arguments (used by :niri and :tile).
+    // Ipc niri rejects unknown actions on stderr with a non-zero exit code, so
+    // surface that as a notification instead of failing silently.
     function action(name, args) {
-        Quickshell.execDetached(["niri", "msg", "action", name].concat((args ?? []).map(String)));
+        actionProc.label = name;
+        actionProc.command = ["niri", "msg", "action", name].concat((args ?? []).map(String));
+        actionProc.running = true;
+    }
+
+    Process {
+        id: actionProc
+        property string label: ""
+        stderr: StdioCollector {
+            id: actionErr
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0)
+                return;
+            const msg = actionErr.text.trim() || `unknown action: ${actionProc.label}`;
+            console.warn("VibeShell: niri action failed:", msg);
+            Quickshell.execDetached(["notify-send", "-a", "vibeshell", "-u", "low", "niri", msg]);
+        }
     }
 
     function refreshWindowTitle() {

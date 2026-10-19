@@ -36,8 +36,9 @@ sandbox_env() {
     [[ -n "$niri" ]] || { echo "sandbox niri not running" >&2; return 1; }
     local b; b=$(env_of "$niri")
     local v val
-    for v in XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME XDG_DATA_HOME \
-             XDG_RUNTIME_DIR VIBESHELL_CONFIG_DIR DBUS_SESSION_BUS_ADDRESS; do
+    for v in HOME XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME XDG_DATA_HOME \
+             XDG_RUNTIME_DIR XDG_PICTURES_DIR VIBESHELL_CONFIG_DIR \
+             DBUS_SESSION_BUS_ADDRESS PATH; do
         val=$(env_get "$b" "$v"); [[ -n "$val" ]] && export "$v=$val"
     done
     : "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"; export XDG_RUNTIME_DIR

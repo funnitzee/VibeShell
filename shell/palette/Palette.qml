@@ -17,21 +17,35 @@ Scope {
         target: "palette"
 
         function toggle(): void {
+            if (!root.open)
+                win.exitList();
             root.open = !root.open;
         }
         function open(query: string): void {
+            win.exitList();
             root.initialQuery = query;
             root.open = true;
         }
         function hide(): void {
             root.open = false;
         }
-        // Runs the best result of a query without showing the palette, e.g. `call palette run ":ws 2"`.
+        // Runs the best result of a query. A command that returns a picker (e.g.
+        // `run ":emoji"`) opens the palette straight into list mode, so list
+        // commands are reachable from keybinds and scripts too.
         function run(query: string): string {
             const r = Commands.search(query)[0];
             if (!r)
                 return "no match";
-            return (r.run() ?? {}).message ?? "";
+            const out = r.run() ?? {};
+            if (out.list) {
+                win.listName = out.title ?? "";
+                win.listItems = out.list;
+                win.selected = 0;
+                root.initialQuery = "";
+                root.open = true;
+                return `list:${out.list.length}`;
+            }
+            return out.message ?? "";
         }
     }
 
@@ -39,12 +53,34 @@ Scope {
         id: win
 
         readonly property int cols: 72
+        readonly property int maxRows: 12
+
+        // List mode: a command can return { list, title } to turn the palette
+        // into a picker (clipboard, emoji, power, help). Typing filters it and
+        // Esc drops back to the command prompt.
+        property var listItems: null
+        property string listName: ""
+        readonly property bool listMode: listItems !== null
+
         // top border, input, divider, results, divider, status, bottom border
-        readonly property int rows: Commands.maxResults + 6
+        readonly property int rows: (listMode ? Math.min(Math.max(listItems.length, 1), maxRows) : Commands.maxResults) + 6
 
         property int selected: 0
         property string message: ""
-        readonly property var results: Commands.search(input.text)
+
+        readonly property var results: {
+            if (!listMode)
+                return Commands.search(input.text);
+            const q = input.text.trim();
+            const shown = q === "" ? listItems : listItems.filter(it => Commands.score(it.title, q) >= 0);
+            return shown.slice(0, maxRows);
+        }
+
+        function exitList() {
+            listItems = null;
+            listName = "";
+            selected = 0;
+        }
 
         function move(delta) {
             if (results.length > 0)
@@ -52,6 +88,8 @@ Scope {
         }
 
         function complete() {
+            if (listMode)
+                return;
             const r = results[selected];
             if (!r)
                 return;
@@ -64,6 +102,21 @@ Scope {
             if (!r)
                 return;
             const out = r.run() ?? {};
+            // A command can open a picker instead of acting directly.
+            if (out.list) {
+                message = "";
+                listName = out.title ?? "";
+                listItems = out.list;
+                input.text = "";
+                selected = 0;
+                return;
+            }
+            // A list entry can drop text back into the prompt for editing.
+            if (out.fill !== undefined) {
+                input.text = out.fill;
+                input.cursorPosition = input.length;
+                return;
+            }
             message = out.message ?? "";
             if (out.close ?? true)
                 root.open = false;
@@ -94,7 +147,7 @@ Scope {
 
             cols: win.cols
             rows: win.rows
-            title: "vibeshell"
+            title: win.listMode ? win.listName : "vibeshell"
             color: Theme.dim
             dividers: [2, win.rows - 3]
 
@@ -144,9 +197,12 @@ Scope {
                 Keys.onPressed: event => {
                     const ctrl = event.modifiers & Qt.ControlModifier;
                     event.accepted = true;
-                    if (event.key === Qt.Key_Escape)
-                        root.open = false;
-                    else if (event.key === Qt.Key_Down || (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_J)))
+                    if (event.key === Qt.Key_Escape) {
+                        if (win.listMode)
+                            win.exitList();
+                        else
+                            root.open = false;
+                    } else if (event.key === Qt.Key_Down || (ctrl && (event.key === Qt.Key_N || event.key === Qt.Key_J)))
                         win.move(1);
                     else if (event.key === Qt.Key_Up || (ctrl && (event.key === Qt.Key_P || event.key === Qt.Key_K)))
                         win.move(-1);
@@ -199,7 +255,7 @@ Scope {
                 x: Theme.cellW / 2
                 width: parent.width - Theme.cellW
                 elide: Text.ElideRight
-                text: win.message !== "" ? win.message : "enter run   tab complete   esc close   : commands"
+                text: win.message !== "" ? win.message : (win.listMode ? "enter select   type to filter   esc back" : "enter run   tab complete   esc close   : commands")
                 color: win.message !== "" ? Theme.fg : Theme.dim
             }
         }

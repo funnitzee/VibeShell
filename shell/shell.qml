@@ -16,6 +16,8 @@ ShellRoot {
     readonly property var idle: Idle
     readonly property var theming: AppTheming
     readonly property var wallpaper: Wallpaper
+    readonly property var clipboard: Clipboard
+    readonly property var screenshot: Screenshot
 
     Bar {}
     Palette {}
