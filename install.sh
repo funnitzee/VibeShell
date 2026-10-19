@@ -26,6 +26,7 @@ INSTALL_SDDM=0
 INSTALL_GREETER=0
 SUPER_TAP=0
 STRIP_PLYMOUTH=0
+INSTALL_PKGS=1
 
 usage() {
   cat <<'EOF'
@@ -42,6 +43,7 @@ Usage: install.sh [options]
   --sddm           install SDDM theme+config
   --greeter        setup greetd greeter
   --super-tap      enable Super-tap (keyd + F15)
+  --no-pkgs        skip the pacman step (packages already installed)
   --no-plymouth    strip plymouth/silent boot
   -h, --help       show help
 EOF
@@ -113,6 +115,7 @@ while (($#)); do
     --sddm) INSTALL_SDDM=1 ;;
     --greeter) INSTALL_GREETER=1 ;;
     --super-tap) SUPER_TAP=1 ;;
+    --no-pkgs) INSTALL_PKGS=0 ;;
     --no-plymouth) STRIP_PLYMOUTH=1 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; die "Unknown: $1" ;;
@@ -199,11 +202,13 @@ log "patch_niri=$PATCH_NIRI patch_apps=$PATCH_APPS sddm=$INSTALL_SDDM greetd=$IN
 if ! confirm "Proceed?"; then exit 0; fi
 
 # Packages
-if (( ${#PKGS[@]} )); then
+if (( ${#PKGS[@]} )) && ((INSTALL_PKGS)); then
   log "Installing: ${PKGS[*]}"
   if confirm "Run 'sudo pacman -S --needed'?"; then
     ((DRY_RUN)) || sudo pacman -S --needed "${PKGS[@]}"
   fi
+elif (( ${#PKGS[@]} )); then
+  log "skipping pacman (--no-pkgs)"
 fi
 
 # Source
@@ -263,9 +268,26 @@ spawn-at-startup "quickshell" "-p" "$SRC/shell"
 
 binds {
 EOF
+  # Only files actually pulled in by config.kdl can really block a bind:
+  # leftover directories (or backups) must not make us skip our own keys.
+  KDL_ACTIVE=()
+  collect_kdl() {
+    local f=$1 line rel
+    [[ -f $f ]] || return 0
+    KDL_ACTIVE+=("$f")
+    while IFS= read -r line; do
+      rel=${line#*\"}; rel=${rel%%\"*}
+      [[ -n $rel ]] || continue
+      collect_kdl "$NIRI_DIR/$rel"
+    done < <(grep -E '^[[:space:]]*include' "$f" 2>/dev/null || true)
+  }
+  collect_kdl "$NIRI_DIR/config.kdl"
   bind_taken() {
     local key=$1 f esc; esc=${key//+/\\+}
-    while IFS= read -r f; do [[ $f == "$SNIPPET" ]] && continue; grep -qE "^[[:space:]]*${esc}([[:space:]]|\{)" "$f" && return 0; done < <(find "$NIRI_DIR" -type f -name '*.kdl' 2>/dev/null)
+    for f in "${KDL_ACTIVE[@]}"; do
+      [[ $f == "$SNIPPET" ]] && continue
+      grep -qE "^[[:space:]]*${esc}([[:space:]]|\{)" "$f" 2>/dev/null && return 0
+    done
     return 1
   }
   add_bind() {
