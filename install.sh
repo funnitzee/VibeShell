@@ -56,7 +56,11 @@ has() { command -v "$1" >/dev/null 2>&1; }
 confirm() {
   ((ASSUME_YES)) && return 0
   local ans
-  read -r -p "$1 [y/N] " ans </dev/tty || return 1
+  if [ -t 0 ] && [ -t 1 ]; then
+    read -r -p "$1 [y/N] " ans </dev/tty || read -r ans || return 1
+  else
+    read -r ans || return 1
+  fi
   [[ $ans == [yY]* ]]
 }
 
@@ -128,7 +132,7 @@ command -v pacman >/dev/null || die "pacman required (Arch/CachyOS)."
 if [[ $PROFILE == "guided" ]]; then
   echo "VibeShell interactive installer"
   echo "================================"
-  if confirm "Show full summary before changes? (recommended)"; then :; fi
+  if [ -t 0 ] && [ -t 1 ] && confirm "Show full summary before changes? (recommended)"; then :; fi
   if ! has whiptail && ! has gum; then
     warn "No whiptail/gum - using simple prompts"
   fi
