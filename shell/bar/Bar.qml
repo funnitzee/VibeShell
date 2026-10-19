@@ -59,6 +59,7 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.cellW * 2
 
+                Tray {}
                 Stats {}
             }
         }
