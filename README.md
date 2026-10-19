@@ -286,6 +286,12 @@ redirected to `/tmp/vibeshell-dev`, so your real config is never touched.
 
 `dev/screenshots.sh` regenerates the pictures in `docs/screenshots/` (old ones are overwritten).
 
+While the nested window is running, `dev/sbx.sh` talks to the shell inside it
+without touching the live session: `dev/sbx.sh call <target> <fn> [args]` for an
+IPC call, `dev/sbx.sh restart` to reload just quickshell after a code change,
+`dev/sbx.sh status`, and `dev/sbx.sh shot [name]`. Don't `:lock` inside the
+sandbox — locking the nested niri disables screenshots and asks your real PAM.
+
 ## Layout
 
 ```
