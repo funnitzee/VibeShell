@@ -5,17 +5,19 @@
 A custom, terminal-flavoured desktop shell for [niri](https://github.com/YaLTeR/niri), built on [Quickshell](https://quickshell.org/) (QML).
 
 > Work in progress. A monochrome-by-default, TUI-flavoured shell with a floating
-> top bar, a vim-style command palette, a dashboard, quick settings, a settings
-> window, a notification daemon (with do-not-disturb and history), a lock screen
-> (idle + lid), an optional greetd greeter / SDDM login theme, app theming
-> (kitty, GTK, VS Code, spicetify), switchable colour palettes, wallpaper control,
-> tiling presets, screenshots, clipboard history, an emoji picker, night light,
-> power profiles, a keybind cheatsheet, user command plugins, a global UI scale
-> and optional matugen colour sync.
+> top bar (workspaces, media, a StatusNotifier system tray and stats), a vim-style
+> command palette, a dashboard, quick settings, a settings window, a notification
+> daemon (with do-not-disturb and history), a lock screen (idle + lid) with an idle
+> stay-awake toggle, a polkit authentication agent, an optional greetd greeter /
+> SDDM login theme, app theming (kitty, GTK, VS Code, spicetify), switchable colour
+> palettes, wallpaper control, tiling presets, screenshots, clipboard history, an
+> emoji picker, night light, power profiles, brightness keys with an on-screen
+> display, a keybind cheatsheet, user command plugins, a global UI scale and
+> optional matugen colour sync.
 
 ## Preview
 
-The top bar: workspaces on the left, clock in the center, media player (shown while something plays) and stats on the right.
+The top bar: workspaces on the left, clock in the center, media player (shown while something plays), the system tray and stats on the right.
 
 ![Top bar](docs/screenshots/bar.png)
 
@@ -29,7 +31,7 @@ The dashboard (`Mod+P` or `:dash`): LED clock, calendar, system panel and now pl
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-The quick settings panel (`Mod+S` or `:qs`): volume, Wi-Fi, Bluetooth and brightness. Navigate with `j`/`k`, activate with `Enter`, `h`/`l` adjusts volume or brightness, `Esc`/`q` closes.
+The quick settings panel (`Mod+S` or `:qs`): volume, Wi-Fi, Bluetooth, brightness, night light, power profile and an idle stay-awake toggle. Navigate with `j`/`k`, activate with `Enter`, `h`/`l` adjusts volume or brightness, `Esc`/`q` closes.
 
 ![Quick settings](docs/screenshots/quick.png)
 
@@ -49,6 +51,7 @@ Notifications: VibeShell is the notification daemon, and popups are TUI cards wi
 - Lid close: the shell watches `/proc/acpi/button/lid/*/state` and locks as soon as the
   lid is closed (works on any laptop; a no-op on desktops)
 - Idle: auto-lock after `idle.lock` seconds, power off monitors after `idle.screenOff` seconds (set to 0 to disable)
+- Stay awake: `:awake` (or `idle.stayAwake`) disables both idle timers entirely, for watching something long
 - PAM: uses `lock.service` (defaults to `login`); set `VIBESHELL_PAM_DIR` to test custom PAM configs
 - Note: while locked, niri blocks screen capture
 
@@ -153,7 +156,8 @@ The base `pacman` step installs everything the shell talks to:
 `niri`, `quickshell`, `ttf-jetbrains-mono-nerd`, `kitty`, `brightnessctl`,
 `swaybg`, `wireplumber` (`wpctl` for the volume keys/OSD), `networkmanager`
 (the Wi-Fi panel), `bluez` (the Bluetooth panel), `upower` (the battery readout)
-and `matugen` (colour sync). The display managers/aids are only pulled in by their
+and `matugen` (colour sync). The `brightnessctl` package drives the brightness
+keys and their OSD. The display managers/aids are only pulled in by their
 flags: `sddm` (`--sddm`), `greetd` (`--greeter`) and `keyd` (`--super-tap`).
 Installing a package does not start its daemon, so the installer prints a hint if
 `NetworkManager`, `bluetooth` or `upower` are not running. The `balanced`/`full`
@@ -241,6 +245,7 @@ Press `Mod+;` (bound by the installer's niri snippet). Type to search applicatio
 | `:emoji` | emoji picker (copies to the clipboard) |
 | `:keys` | keybind cheatsheet overlay |
 | `:lock` | lock the screen |
+| `:awake [on\|off]` | keep the screen awake (toggle when no argument) |
 | `:theming` | regenerate app theme files under `app-themes/` |
 | `:theme [name\|next]` | switch colour palette (`next` cycles) |
 | `:wallpaper [next\|prev\|<path>]` | change the wallpaper |
@@ -284,7 +289,7 @@ types a value, `Esc`/`q` closes.
   "night": { "enabled": false, "temperature": 4500 },
   "power": { "lowThreshold": 15 },
   "lock": { "service": "login" },
-  "idle": { "lock": 300, "screenOff": 600 },
+  "idle": { "lock": 300, "screenOff": 600, "stayAwake": false },
   "bar": { "height": 34, "gap": 8, "radius": 10, "borderWidth": 1 }
 }
 ```
@@ -319,6 +324,22 @@ bar when their tools are installed:
 - **Power profiles** (`:power profile`, or `:power profile performance`):
   `power-profiles-daemon`'s `power-saver` / `balanced` / `performance` from
   `powerprofilesctl`. The quick settings row cycles them with `Enter`/`h`/`l`.
+
+## System tray
+
+The bar shows a StatusNotifier (app indicator) tray to the left of the stats: one
+text token per item. Left click activates, middle click runs the secondary action, the
+wheel scrolls (volume mixers, ...) and a right click opens the item's menu when it has
+one. Nothing to configure — it uses the same `StatusNotifierWatcher` as any other
+shell, so items simply appear as apps register.
+
+## Authentication agent (polkit)
+
+The shell runs a polkit agent: when a privileged action needs a password, a centered
+TUI prompt appears (message, prompt, masked input; `Enter` authenticates, `Esc`
+cancels). Only one agent can own a subject at a time, so if you already run one
+(gnome-polkit, hyprpolkitagent, ...) VibeShell's stays dormant and the window never
+shows.
 
 ## CLI and user scripts
 
@@ -385,12 +406,18 @@ palette
   ok    :help lists commands
   ok    :calc adds
   ...
-passed 23, failed 0
+passed 29, failed 0
 ```
 
 CI runs the same script on every push and pull request
 (`.github/workflows/ci.yml`): an Arch Linux container with a headless Weston
-acting as the host compositor for the nested niri, so the suite needs no GPU.
+acting as the host compositor for the nested niri, so the suite needs no GPU. A
+separate `lint` job runs `dev/lint.sh` (syntax check, shellcheck and qmllint) on
+the shell and scripts.
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds
+`packaging/PKGBUILD` (pinned to the tag) and attaches the `.pkg.tar.zst` plus a
+`.sha256` to a generated GitHub release.
 
 ## Layout
 
@@ -398,16 +425,17 @@ acting as the host compositor for the nested niri, so the suite needs no GPU.
 install.sh   Installer
 bin/         vibeshell CLI wrapper
 shell/       Quickshell config (entry point: shell/shell.qml)
-  bar/       Bar and its modules
+  bar/       Bar and its modules (workspaces, media, tray, stats)
   dashboard/ Dashboard: clock, calendar, system panel, now playing
-  quick/     Quick settings: volume, Wi-Fi, Bluetooth, brightness, night light, power profiles
+  quick/     Quick settings: volume, Wi-Fi, Bluetooth, brightness, night light, power profiles, stay awake
   settings/  Settings window: edit and save any setting in place
   keys/      Keybind cheatsheet overlay
   notify/    Notification popups (TUI cards)
-  osd/       On-screen display (volume, night light, power profiles)
+  osd/       On-screen display (volume, night light, power profiles, brightness)
   palette/   Command palette (UI and command backend)
+  polkit/    Polkit authentication agent prompt
   components/ Reusable pieces: TuiFrame, Spark, Gauge, Txt, BigClock, Eq
-  services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications, wallpaper, screenshot, clipboard, night light, power profiles, app theming
+  services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications, wallpaper, screenshot, clipboard, night light, power profiles, app theming, idle
   palettes/  Color palettes
   defaults/  Shipped default settings
 sddm/        SDDM login theme (installed with --sddm)
@@ -453,3 +481,9 @@ docs/        Screenshots used in this README
 - [x] OSD for night light and power profiles
 - [x] Settings window: night light, power profile, DND, battery threshold
 - [x] Self-contained smoke tests (`dev/test.sh`)
+- [x] Brightness OSD and brightness keys
+- [x] Idle stay-awake toggle (`:awake`)
+- [x] System tray (StatusNotifier)
+- [x] Polkit authentication agent
+- [x] CI: lint (shellcheck + qmllint) and smoke tests on every push
+- [x] Release pipeline (tag → package + GitHub release)
