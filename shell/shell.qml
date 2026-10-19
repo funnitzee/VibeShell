@@ -5,6 +5,7 @@ import qs.lock
 import qs.notify
 import qs.osd
 import qs.palette
+import qs.polkit
 import qs.quick
 import qs.services
 import qs.greeter
@@ -33,4 +34,5 @@ ShellRoot {
     Notify {}
     LockScreen {}
     Greeter {}
+    Polkit {}
 }
