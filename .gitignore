@@ -1,4 +1,10 @@
 *.bak
+*.bak.*
 *.swp
 .qmlls.ini
 __pycache__/
+
+# packaging (makepkg)
+packaging/pkg/
+packaging/src/
+packaging/*.pkg.tar.*

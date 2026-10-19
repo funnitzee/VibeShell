@@ -10,7 +10,7 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 # Base minimal packages
 BASE_PKGS=(git niri quickshell ttf-jetbrains-mono-nerd kitty brightnessctl swaybg wireplumber networkmanager bluez upower matugen)
-BALANCED_PKGS=(grim slurp wl-clipboard cliphist libnotify)
+BALANCED_PKGS=(grim slurp wl-clipboard cliphist libnotify gammastep power-profiles-daemon swappy)
 FULL_PKGS=(sddm greetd hyprpolkitagent keyd)
 
 ASSUME_YES=0
@@ -229,6 +229,32 @@ fi
 # Settings
 ((DRY_RUN)) || { mkdir -p "$CONFIG_HOME/vibeshell"; [[ -e $CONFIG_HOME/vibeshell/settings.json ]] || echo '{}' >"$CONFIG_HOME/vibeshell/settings.json"; log "settings ok"; }
 
+# User command plugins: any executable here shows up in the palette as :name.
+COMMANDS_DIR="$CONFIG_HOME/vibeshell/commands"
+if [[ ! -d $COMMANDS_DIR ]]; then
+  ((DRY_RUN)) || mkdir -p "$COMMANDS_DIR"
+  log "created $COMMANDS_DIR"
+fi
+if [[ -z $(find "$COMMANDS_DIR" -maxdepth 1 -type f 2>/dev/null) ]]; then
+  ((DRY_RUN)) || {
+    cat >"$COMMANDS_DIR/hello.sh" <<'EOF'
+#!/usr/bin/env bash
+# desc: example plugin - edit or delete me
+notify-send -a vibeshell "vibeshell plugin" "hello from :hello"
+EOF
+    chmod +x "$COMMANDS_DIR/hello.sh"
+  }
+  log "wrote example plugin $COMMANDS_DIR/hello.sh"
+fi
+
+# CLI wrapper (~/.local/bin/vibeshell)
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+if [[ -f $SRC/bin/vibeshell ]]; then
+  ((DRY_RUN)) || { mkdir -p "$BIN_DIR"; install -m755 "$SRC/bin/vibeshell" "$BIN_DIR/vibeshell"; }
+  log "installed $BIN_DIR/vibeshell"
+  case ":$PATH:" in *":$BIN_DIR:"*) ;; *) warn "$BIN_DIR is not on PATH - add it to use 'vibeshell'" ;; esac
+fi
+
 # niri snippet
 NIRI_DIR="$CONFIG_HOME/niri"
 SNIPPET="$NIRI_DIR/vibeshell.kdl"
@@ -256,6 +282,7 @@ EOF
   add_bind "Mod+S" "hotkey-overlay-title=\"VibeShell quick settings\" { $ipc \"quick\" \"toggle\"; }"
   add_bind "Mod+Shift+S" "hotkey-overlay-title=\"VibeShell settings\" { $ipc \"settings\" \"toggle\"; }"
   add_bind "Mod+Alt+L" "hotkey-overlay-title=\"VibeShell lock\" { $ipc \"lock\" \"lock\"; }"
+  add_bind "Mod+Slash" "hotkey-overlay-title=\"VibeShell keybinds\" { $ipc \"keys\" \"toggle\"; }"
   add_bind "Mod+Return" 'hotkey-overlay-title="Terminal" { spawn "kitty"; }'
   add_bind "XF86AudioRaiseVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }'
   add_bind "XF86AudioLowerVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }'

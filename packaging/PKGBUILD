@@ -1,0 +1,59 @@
+# Maintainer: VibeShell contributors
+# AUR package for the VibeShell niri + Quickshell desktop shell.
+#
+# Build/install locally with:
+#   cd packaging && makepkg -si
+# Publishing to the AUR needs a generated .SRCINFO:
+#   makepkg --printsrcinfo > .SRCINFO
+
+pkgname=vibeshell-git
+pkgver=r0.0.0
+pkgrel=1
+pkgdesc="A terminal-flavoured desktop shell for niri, built on Quickshell"
+arch=('any')
+url="https://github.com/funnitzee/VibeShell"
+license=('MIT')
+depends=('quickshell' 'niri' 'pipewire' 'wireplumber' 'networkmanager' 'bluez' 'upower')
+optdepends=(
+    'grim: screenshots'
+    'slurp: region screenshots'
+    'wl-clipboard: clipboard and copying shots'
+    'cliphist: clipboard history'
+    'swappy: annotate screenshots'
+    'libnotify: shell notifications'
+    'brightnessctl: brightness control'
+    'swaybg: wallpapers'
+    'matugen: colour sync from the accent'
+    'gammastep: night light'
+    'power-profiles-daemon: power profiles'
+    'ttf-jetbrains-mono-nerd: default shell font'
+)
+makedepends=('git')
+provides=('vibeshell')
+conflicts=('vibeshell')
+source=("vibeshell-git::git+https://github.com/funnitzee/VibeShell.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd VibeShell
+    printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+    cd VibeShell
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+    # The shell itself (Quickshell runs shell/shell.qml).
+    mkdir -p "$pkgdir/usr/share/vibeshell"
+    cp -r shell "$pkgdir/usr/share/vibeshell/shell"
+    cp -r sddm "$pkgdir/usr/share/vibeshell/sddm" 2>/dev/null || true
+
+    # CLI wrapper.
+    install -Dm755 bin/vibeshell "$pkgdir/usr/bin/vibeshell"
+
+    # Docs.
+    for f in README.md LICENSE; do
+        [ -f "$f" ] && install -Dm644 "$f" "$pkgdir/usr/share/doc/$pkgname/$f"
+    done
+}

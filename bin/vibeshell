@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# vibeshell - thin CLI wrapper around the VibeShell IPC endpoints.
+#
+# It finds shell.qml, then talks to the running shell with
+# `quickshell ipc`. Most subcommands just map onto a `:` palette command, so
+# anything the palette can do is one line away in a terminal or a keybind.
+#
+#   vibeshell theme tokyo-night
+#   vibeshell shot region
+#   vibeshell toggle quick
+#   vibeshell run ":night on"
+#   vibeshell doctor
+set -euo pipefail
+
+find_shell() {
+    if [ -n "${VIBESHELL_SHELL:-}" ] && [ -f "${VIBESHELL_SHELL}" ]; then
+        printf '%s' "${VIBESHELL_SHELL}"
+        return 0
+    fi
+    local self
+    self=$(readlink -f "$0")
+    local candidate
+    for candidate in \
+        /usr/share/vibeshell/shell/shell.qml \
+        /usr/local/share/vibeshell/shell/shell.qml \
+        "${XDG_DATA_HOME:-$HOME/.local/share}/vibeshell/shell/shell.qml" \
+        "$(dirname "${self}")/../shell/shell.qml"; do
+        if [ -f "${candidate}" ]; then
+            printf '%s' "${candidate}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+SHELL_QML=$(find_shell) || {
+    echo "vibeshell: cannot find shell.qml (set VIBESHELL_SHELL)" >&2
+    exit 1
+}
+
+if ! command -v quickshell >/dev/null 2>&1; then
+    echo "vibeshell: quickshell is not installed" >&2
+    exit 1
+fi
+
+ipc() { quickshell ipc -p "${SHELL_QML}" "$@"; }
+palette_run() { ipc call palette run "$1"; }
+
+usage() {
+    cat <<EOF
+vibeshell - control the VibeShell shell
+
+Usage: vibeshell <command> [args]
+
+  run <text>        run a palette command, with or without the leading ':'
+  theme [name]      switch colour palette (next/name)
+  shot [mode]       screenshot (full|region|edit|region-edit)
+  clip [clear]      clipboard history
+  emoji             emoji picker
+  power [args]      power menu / ':power profile <name>'
+  night [on|off|<kelvin>]   night light
+  theme, night, keys, notify, ...  -> any palette command
+
+  toggle <panel>    toggle dashboard|quick|settings|keys|palette
+  lock              lock the screen
+  reload            reload the shell
+  doctor            check installed tools
+  help              this message
+
+Environment:
+  VIBESHELL_SHELL   path to shell.qml (overrides auto-detection)
+EOF
+}
+
+doctor() {
+    local ok=0
+    check() {
+        local name=$1 req=$2
+        if command -v "${name}" >/dev/null 2>&1; then
+            printf '  [ok]   %s\n' "${name}"
+        elif [ "${req}" = "req" ]; then
+            printf '  [MISS] %s (required)\n' "${name}"
+        else
+            printf '  [ -- ] %s (optional)\n' "${name}"
+        fi
+    }
+    echo "shell: ${SHELL_QML}"
+    echo
+    echo "core:"
+    check niri required
+    check quickshell required
+    check wpctl required
+    check notify-send required
+    echo
+    echo "optional:"
+    check grim optional
+    check slurp optional
+    check wl-copy optional
+    check cliphist optional
+    check swappy optional
+    check gammastep optional
+    check powerprofilesctl optional
+    check swww optional
+    check matugen optional
+}
+
+cmd=${1:-help}
+shift || true
+case "${cmd}" in
+    run|cmd) palette_run "${1:?usage: vibeshell run <text>}" ;;
+    toggle) ipc call "${1:?usage: vibeshell toggle <panel>}" toggle ;;
+    dashboard|dash) ipc call dashboard toggle ;;
+    quick|qs) ipc call quick toggle ;;
+    settings) ipc call settings toggle ;;
+    keys) ipc call keys toggle ;;
+    palette) ipc call palette toggle ;;
+    lock) ipc call lock lock ;;
+    unlock) ipc call lock unlock ;;
+    theme) palette_run ":theme${1:+ $1}" ;;
+    shot) palette_run ":shot${1:+ $1}" ;;
+    clip) palette_run ":clip${1:+ $1}" ;;
+    emoji) palette_run ":emoji" ;;
+    power) palette_run ":power${1:+ $1}" ;;
+    night) palette_run ":night${1:+ $1}" ;;
+    dnd) ipc call notify dnd ;;
+    reload) palette_run ":reload" ;;
+    doctor) doctor ;;
+    help|-h|--help) usage ;;
+    *) echo "vibeshell: unknown command '${cmd}'" >&2; usage; exit 1 ;;
+esac
