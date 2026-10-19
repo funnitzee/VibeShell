@@ -20,27 +20,32 @@ niri_pid() {
     pgrep -f "niri -c $SB/niri.kdl" | head -1 || true
 }
 
-env_of() { tr '\0' '\n' < "/proc/$1/environ" 2>/dev/null; }
+env_of() { [[ -n "${1:-}" ]] && tr '\0' '\n' < "/proc/$1/environ" 2>/dev/null; return 0; }
 env_get() { printf '%s\n' "$1" | sed -n "s/^$2=//p"; }
 
 # The isolated XDG dirs and the private session bus come from the nested niri
-# (run-nested.sh exports them, then execs niri). The display is the shell's own
-# Wayland socket (wayland-2, ...), not niri's inherited one (wayland-1), so IPC
-# must target that. Re-export both on every call *and* before respawning the
-# shell — otherwise a restart would inherit this script's env and read/write the
-# real ~/.config instead of the sandbox.
+# (run-nested.sh exports them, then execs niri), so read those off the niri
+# process. Its WAYLAND_DISPLAY/NIRI_SOCKET, however, point at the *parent*
+# compositor (wayland-1); the nested niri hosts its clients on its own socket
+# (wayland-2), whose name carries both — derive them from the niri pid so IPC
+# still targets the sandbox even when the shell is down. Re-export on every call
+# *and* before respawning the shell, or a restart would inherit this script's
+# env and read/write the real ~/.config instead of the sandbox.
 sandbox_env() {
-    local qs niri; qs=$(pgrep -f "quickshell -p $QML" | head -1 || true); niri=$(niri_pid)
-    local base; base=${niri:-$qs}
-    [[ -n "$base" ]] || { echo "sandbox not running" >&2; return 1; }
-    local b n; b=$(env_of "$niri"); n=$(env_of "$qs")
+    local niri; niri=$(niri_pid)
+    [[ -n "$niri" ]] || { echo "sandbox niri not running" >&2; return 1; }
+    local b; b=$(env_of "$niri")
     local v val
     for v in XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME XDG_DATA_HOME \
              XDG_RUNTIME_DIR VIBESHELL_CONFIG_DIR DBUS_SESSION_BUS_ADDRESS; do
         val=$(env_get "$b" "$v"); [[ -n "$val" ]] && export "$v=$val"
     done
-    WAYLAND_DISPLAY=$(env_get "$n" WAYLAND_DISPLAY); WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-$(env_get "$b" WAYLAND_DISPLAY)}
-    NIRI_SOCKET=$(env_get "$n" NIRI_SOCKET); NIRI_SOCKET=${NIRI_SOCKET:-$(env_get "$b" NIRI_SOCKET)}
+    : "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"; export XDG_RUNTIME_DIR
+    local sock; sock=$(ls -1 "$XDG_RUNTIME_DIR"/niri.wayland-*."$niri".sock 2>/dev/null | head -1)
+    if [[ -n "$sock" ]]; then
+        NIRI_SOCKET=$sock
+        WAYLAND_DISPLAY=$(printf '%s' "${sock##*/}" | sed 's/^niri\.\(wayland-[0-9]*\)\..*$/\1/')
+    fi
     export WAYLAND_DISPLAY NIRI_SOCKET
 }
 
@@ -53,9 +58,11 @@ case "$cmd" in
         exec quickshell ipc -p "$QML" call "$@"
         ;;
     restart)
-        # Kill by pid (pkill -f would also match this script's own argv).
-        qs_pid=$(pgrep -f "quickshell -p $QML" | head -1 || true)
-        [[ -n "$qs_pid" ]] && kill "$qs_pid" 2>/dev/null || true
+        # Kill every matching pid (pkill -f would also match this script's own
+        # argv, and leaving a second instance behind makes IPC ambiguous/hang).
+        for qs_pid in $(pgrep -f "quickshell -p $QML" || true); do
+            kill "$qs_pid" 2>/dev/null || true
+        done
         sleep 0.5
         sandbox_env
         # Spawn inside the sandbox bus so the new instance is discoverable.
