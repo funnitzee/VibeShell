@@ -39,6 +39,23 @@ esac
 EOS
 chmod +x "$SB/bin/brightnessctl"
 
+# Fake gammastep / powerprofilesctl so the quick settings preview also shows the
+# night-light and power-profile rows on machines without those packages.
+cat >"$SB/bin/gammastep" <<'EOS'
+#!/usr/bin/env bash
+exit 0
+EOS
+chmod +x "$SB/bin/gammastep"
+
+cat >"$SB/bin/powerprofilesctl" <<'EOS'
+#!/usr/bin/env bash
+case "$1" in
+  list) printf '  performance:\n    Driver: placeholder\n  power-saver:\n    Driver: placeholder\n\n* balanced:\n    Driver: placeholder\n' ;;
+  *) exit 0 ;;
+esac
+EOS
+chmod +x "$SB/bin/powerprofilesctl"
+
 cat >"$SB/niri.kdl" <<EOF
 hotkey-overlay {
     skip-at-startup
