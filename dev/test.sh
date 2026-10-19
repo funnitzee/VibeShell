@@ -64,10 +64,24 @@ chmod +x "$SB/config/vibeshell/commands/hello.sh"
 # fake tools (same idea as dev/screenshots.sh)
 cat >"$SB/bin/brightnessctl" <<'EOS'
 #!/usr/bin/env bash
+# stateful fake so set/get stay consistent between the shell's polls
+state="$HOME/.brightness"
+max=1000
+cur=$(cat "$state" 2>/dev/null || echo 650)
 case "$1" in
-  get) echo 15600 ;;
-  max) echo 24000 ;;
-  *) exit 0 ;;
+  get) echo "$cur" ;;
+  max) echo "$max" ;;
+  set)
+    case "$2" in
+      *%+) pct="${2%\%+}"; cur=$((cur + max * pct / 100)) ;;
+      *%-) pct="${2%\%-}"; cur=$((cur - max * pct / 100)) ;;
+      *%) pct="${2%\%}"; cur=$((max * pct / 100)) ;;
+      *) cur="$2" ;;
+    esac
+    if ((cur < 0)); then cur=0; fi
+    if ((cur > max)); then cur=$max; fi
+    echo "$cur" >"$state"
+    ;;
 esac
 EOS
 cat >"$SB/bin/gammastep" <<'EOS'
@@ -192,6 +206,11 @@ check ":notify lists" "list:" "$(pal ':notify')"
 check ":shot lists modes" "list:" "$(pal ':shot')"
 check ":clip lists history" "list:" "$(pal ':clip')"
 check ":emoji lists" "list:" "$(pal ':emoji')"
+
+echo "osd"
+check "brightness ipc set" "40" "$(call brightness set 40)"
+check "brightness ipc up" "45" "$(call brightness up)"
+check "brightness ipc down" "40" "$(call brightness down)"
 
 echo "panels"
 for p in quick settings keys dashboard; do

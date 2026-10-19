@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import qs
@@ -26,9 +27,11 @@ Scope {
         return `[${"█".repeat(n)}${"░".repeat(10 - n)}]`;
     }
 
-    readonly property string osdTitle: mode === "night" ? "night light" : mode === "power" ? "power profile" : (Audio.muted ? "mute" : "volume")
+    readonly property string osdTitle: mode === "brightness" ? "brightness" : mode === "night" ? "night light" : mode === "power" ? "power profile" : (Audio.muted ? "mute" : "volume")
 
     readonly property string osdBody: {
+        if (mode === "brightness")
+            return `${bar(Brightness.percent / 100)} ${Brightness.percent}%`;
         if (mode === "night")
             return NightLight.enabled ? `${bar((6500 - NightLight.temperature) / (6500 - 1000))} ${NightLight.temperature}K` : "[   off    ]";
         if (mode === "power")
@@ -91,6 +94,17 @@ Scope {
     }
 
     Connections {
+        target: Brightness
+
+        // update() sets percent before initialized, so the startup read does
+        // not flash the OSD.
+        function onPercentChanged() {
+            if (Brightness.available)
+                root.show("brightness");
+        }
+    }
+
+    Connections {
         target: NightLight
 
         function onEnabledChanged() {
@@ -113,6 +127,23 @@ Scope {
             }
             if (PowerProfiles.available)
                 root.show("power");
+        }
+    }
+
+    IpcHandler {
+        target: "brightness"
+
+        function up(): int {
+            Brightness.adjust(5);
+            return Brightness.percent;
+        }
+        function down(): int {
+            Brightness.adjust(-5);
+            return Brightness.percent;
+        }
+        function set(value: int): int {
+            Brightness.setPercent(value);
+            return Brightness.percent;
         }
     }
 }

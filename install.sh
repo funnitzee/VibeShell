@@ -285,6 +285,8 @@ EOF
   add_bind "XF86AudioRaiseVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }'
   add_bind "XF86AudioLowerVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }'
   add_bind "XF86AudioMute" 'allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }'
+  add_bind "XF86MonBrightnessUp" "allow-when-locked=true { $ipc \"brightness\" \"up\"; }"
+  add_bind "XF86MonBrightnessDown" "allow-when-locked=true { $ipc \"brightness\" \"down\"; }"
   cat <<EOF
 }
 EOF
