@@ -42,6 +42,7 @@ cleanup() {
     if [[ -n ${NIRI_PID:-} ]]; then
         kill -TERM -- "-$NIRI_PID" 2>/dev/null || kill "$NIRI_PID" 2>/dev/null
     fi
+    [[ -n ${SNI_PID:-} ]] && kill "$SNI_PID" 2>/dev/null
     pkill -f "niri -c $SB/niri.kdl" 2>/dev/null
     pkill -f "quickshell -p $SHELL" 2>/dev/null
     return 0
@@ -218,9 +219,85 @@ stay=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["idle"]["
 check ":awake persists" "True" "$stay"
 check ":awake off" "stay awake off" "$(pal ':awake off')"
 
+echo "tray"
+if python3 -c 'import dbus, gi' 2>/dev/null; then
+    cat >"$SB/fake-sni.py" <<'PY'
+import dbus
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib
+
+DBusGMainLoop(set_as_default=True)
+bus = dbus.SessionBus()
+name = dbus.service.BusName("org.kde.StatusNotifierItem-vibeshelltest", bus)
+IFACE = "org.kde.StatusNotifierItem"
+PROP = "org.freedesktop.DBus.Properties"
+props = {
+    "Category": "ApplicationStatus", "Id": "vibeshelltest", "Title": "testitem",
+    "Status": "Active", "IconName": "application-x-executable",
+    "ItemIsMenu": False, "WindowId": 0, "IconThemePath": "",
+}
+
+
+class Item(dbus.service.Object):
+    def __init__(self):
+        super().__init__(name, "/StatusNotifierItem")
+
+    @dbus.service.method(PROP, in_signature="ss", out_signature="v")
+    def Get(self, iface, prop):
+        return props[prop]
+
+    @dbus.service.method(PROP, in_signature="s", out_signature="a{sv}")
+    def GetAll(self, iface):
+        return dbus.Dictionary(props, signature="sv")
+
+    @dbus.service.method(IFACE, in_signature="ii", out_signature="")
+    def Activate(self, x, y):
+        print("ACTIVATE", flush=True)
+
+    @dbus.service.method(IFACE, in_signature="ii", out_signature="")
+    def SecondaryActivate(self, x, y):
+        print("SECONDARY", flush=True)
+
+    @dbus.service.method(IFACE, in_signature="is", out_signature="")
+    def Scroll(self, delta, orientation):
+        print("SCROLL", flush=True)
+
+    @dbus.service.method(IFACE, in_signature="ii", out_signature="")
+    def ContextMenu(self, x, y):
+        print("CONTEXTMENU", flush=True)
+
+
+Item()
+watcher = bus.get_object("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher")
+dbus.Interface(watcher, "org.kde.StatusNotifierWatcher").RegisterStatusNotifierItem(name.get_name())
+print("registered", flush=True)
+GLib.MainLoop().run()
+PY
+    setsid python3 "$SB/fake-sni.py" >"$SB/sni.log" 2>&1 </dev/null &
+    SNI_PID=$!
+    n=0
+    for _ in $(seq 40); do
+        n=$(call tray count 2>/dev/null)
+        [[ "$n" == "1" ]] && break
+        sleep 0.25
+    done
+    check "tray sees an item" "1" "$n"
+    check "tray item title" "testitem" "$(call tray title 0)"
+    call tray activate 0 >/dev/null 2>&1
+    call tray secondary 0 >/dev/null 2>&1
+    call tray scroll 0 120 >/dev/null 2>&1
+    sleep 0.5
+    log=$(cat "$SB/sni.log" 2>/dev/null)
+    check "tray activate" "ACTIVATE" "$log"
+    check "tray secondary" "SECONDARY" "$log"
+    check "tray scroll" "SCROLL" "$log"
+else
+    echo "  skip  tray (python-dbus / python-gobject not installed)"
+fi
+
 echo "panels"
-for p in quick settings keys dashboard; do
-    out=$(call "$p" open)
+for p in quick settings keys dashboard; do    out=$(call "$p" open)
     [[ -z "$out" ]] && ok "open $p" || bad "open $p" "unexpected: $out"
     call "$p" hide >/dev/null 2>&1
 done

@@ -339,7 +339,7 @@ The shell runs a polkit agent: when a privileged action needs a password, a cent
 TUI prompt appears (message, prompt, masked input; `Enter` authenticates, `Esc`
 cancels). Only one agent can own a subject at a time, so if you already run one
 (gnome-polkit, hyprpolkitagent, ...) VibeShell's stays dormant and the window never
-shows.
+shows — which is why the installer does not pull in a separate agent package.
 
 ## CLI and user scripts
 

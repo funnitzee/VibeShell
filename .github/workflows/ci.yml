@@ -46,7 +46,7 @@ jobs:
             niri quickshell weston \
             mesa libglvnd \
             dbus util-linux procps-ng \
-            python \
+            python python-dbus python-gobject \
             pipewire \
             ttf-jetbrains-mono
 

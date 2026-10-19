@@ -11,7 +11,9 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Base minimal packages
 BASE_PKGS=(git niri quickshell ttf-jetbrains-mono-nerd kitty brightnessctl swaybg wireplumber networkmanager bluez upower matugen)
 BALANCED_PKGS=(grim slurp wl-clipboard cliphist libnotify gammastep power-profiles-daemon swappy)
-FULL_PKGS=(sddm greetd hyprpolkitagent keyd)
+# The shell ships its own polkit agent, so a login manager / keyd aid is enough
+# here - no separate agent package (they would just fight over the subject).
+FULL_PKGS=(sddm greetd keyd)
 
 ASSUME_YES=0
 DRY_RUN=0

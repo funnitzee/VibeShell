@@ -3,6 +3,7 @@ import Quickshell.Services.SystemTray
 import QtQuick
 import qs
 import qs.components
+import qs.services
 
 // StatusNotifier tray: one text token per app indicator, sitting left of the
 // stats cluster. Left click activates, middle click runs the secondary action,
@@ -11,7 +12,7 @@ import qs.components
 Item {
     id: root
 
-    readonly property var entries: SystemTray.items.values
+    readonly property var entries: TrayItems.items
     visible: entries.length > 0
     implicitWidth: content.implicitWidth
     implicitHeight: content.implicitHeight

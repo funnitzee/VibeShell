@@ -1,14 +1,17 @@
 import Quickshell
+import Quickshell.Wayland
 import QtQuick
 import qs
 import qs.bar.modules
 import qs.components
+import qs.services as Services
 
 // One floating bar per screen: workspaces and media left, clock center (click: dashboard), stats right.
 Variants {
     model: Quickshell.screens
 
     delegate: PanelWindow {
+        id: panel
         required property var modelData
         screen: modelData
 
@@ -25,6 +28,13 @@ Variants {
 
         implicitHeight: Theme.barHeight
         color: "transparent"
+
+        // "Keep awake" also tells the compositor (and anything else watching
+        // idle) to stay active, not just skip our own timers.
+        IdleInhibitor {
+            enabled: Services.Idle.stayAwake
+            window: panel
+        }
 
         Rectangle {
             anchors.fill: parent

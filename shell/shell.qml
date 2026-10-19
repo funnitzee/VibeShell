@@ -23,6 +23,7 @@ ShellRoot {
     readonly property var screenshot: Screenshot
     readonly property var nightLight: NightLight
     readonly property var powerProfiles: PowerProfiles
+    readonly property var tray: TrayItems
 
     Bar {}
     Palette {}
