@@ -1,5 +1,7 @@
 # VibeShell
 
+[![CI](https://github.com/funnitzee/VibeShell/actions/workflows/ci.yml/badge.svg)](https://github.com/funnitzee/VibeShell/actions/workflows/ci.yml)
+
 A custom, terminal-flavoured desktop shell for [niri](https://github.com/YaLTeR/niri), built on [Quickshell](https://quickshell.org/) (QML).
 
 > Work in progress. A monochrome-by-default, TUI-flavoured shell with a floating
@@ -385,6 +387,10 @@ palette
   ...
 passed 23, failed 0
 ```
+
+CI runs the same script on every push and pull request
+(`.github/workflows/ci.yml`): an Arch Linux container with a headless Weston
+acting as the host compositor for the nested niri, so the suite needs no GPU.
 
 ## Layout
 
