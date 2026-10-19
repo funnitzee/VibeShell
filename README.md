@@ -1,6 +1,7 @@
 # VibeShell
 
 [![CI](https://github.com/funnitzee/VibeShell/actions/workflows/ci.yml/badge.svg)](https://github.com/funnitzee/VibeShell/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/funnitzee/VibeShell?sort=semver)](https://github.com/funnitzee/VibeShell/releases)
 
 A custom, terminal-flavoured desktop shell for [niri](https://github.com/YaLTeR/niri), built on [Quickshell](https://quickshell.org/) (QML).
 
@@ -376,6 +377,10 @@ chmod +x ~/.config/vibeshell/commands/notes.sh   # then :notes
 ```sh
 cd packaging && makepkg -si
 ```
+
+Every `v*` tag is built in CI and the resulting `.pkg.tar.zst` (plus a `.sha256`) is
+attached to the [releases page](https://github.com/funnitzee/VibeShell/releases), so
+you can also grab the prebuilt package and `pacman -U` it.
 
 The guided `install.sh` remains the recommended path — it also wires niri, app theming
 and the greeter. Submitting the PKGBUILD to the AUR only needs a fresh
