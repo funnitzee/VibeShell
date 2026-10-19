@@ -15,6 +15,15 @@ Scope {
         function clear(): void {
             Notifications.clear();
         }
+        function dnd(): void {
+            Notifications.toggleDnd();
+        }
+        function dndOn(): void {
+            Notifications.setDnd(true);
+        }
+        function dndOff(): void {
+            Notifications.setDnd(false);
+        }
     }
 
     PanelWindow {

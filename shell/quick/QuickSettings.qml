@@ -52,6 +52,16 @@ Scope {
                 id: "bri",
                 activate: () => {}
             });
+        if (NightLight.available)
+            items.push({
+                id: "night",
+                activate: () => NightLight.toggle()
+            });
+        if (PowerProfiles.available)
+            items.push({
+                id: "ppd",
+                activate: () => PowerProfiles.cycle()
+            });
         return items;
     }
 
@@ -228,12 +238,16 @@ Scope {
                             Audio.adjust(-5);
                         else if (root.selected("bri"))
                             Brightness.setPercent(Brightness.percent - 5);
+                        else if (root.selected("night"))
+                            NightLight.adjust(-250);
                         event.accepted = true;
                     } else if (event.key === Qt.Key_L || event.key === Qt.Key_Right) {
                         if (root.selected("vol"))
                             Audio.adjust(5);
                         else if (root.selected("bri"))
                             Brightness.setPercent(Brightness.percent + 5);
+                        else if (root.selected("night"))
+                            NightLight.adjust(250);
                         event.accepted = true;
                     }
                 }
@@ -470,9 +484,75 @@ Scope {
                 }
             }
 
+            // -- night light ---------------------------------------------------
+            Item {
+                y: 15 * Theme.cellH
+                width: parent.width
+                height: Theme.cellH
+                visible: NightLight.available
+
+                Txt {
+                    text: "night"
+                    color: Theme.dim
+                }
+
+                Txt {
+                    x: 5 * Theme.cellW
+                    text: root.selected("night") ? ">" : " "
+                    color: Theme.accent
+                }
+
+                Txt {
+                    x: 6 * Theme.cellW
+                    text: NightLight.enabled ? `● ${NightLight.temperature}K` : "○ off"
+                    color: NightLight.enabled ? Theme.accent : Theme.dim
+                }
+
+                Act {
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.cellW
+                    active: NightLight.enabled
+                    text: NightLight.enabled ? "[  on  ]" : "[ off ]"
+                    onActivated: NightLight.toggle()
+                }
+            }
+
+            // -- power profile -------------------------------------------------
+            Item {
+                y: 16 * Theme.cellH
+                width: parent.width
+                height: Theme.cellH
+                visible: PowerProfiles.available
+
+                Txt {
+                    text: "perf "
+                    color: Theme.dim
+                }
+
+                Txt {
+                    x: 5 * Theme.cellW
+                    text: root.selected("ppd") ? ">" : " "
+                    color: Theme.accent
+                }
+
+                Txt {
+                    x: 6 * Theme.cellW
+                    text: PowerProfiles.active !== "" ? `${PowerProfiles.active}` : "unknown"
+                    color: Theme.accent
+                }
+
+                Act {
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.cellW
+                    active: true
+                    text: "[ cycle ]"
+                    onActivated: PowerProfiles.cycle()
+                }
+            }
+
             // -- hint (shares the last row with the password prompt) -----------
             Txt {
-                y: 15 * Theme.cellH
+                y: 17 * Theme.cellH
                 visible: root.pendingNetwork === null
                 color: Theme.dim
                 text: "j/k move   enter select   h/l adjust   esc close"
@@ -480,7 +560,7 @@ Scope {
 
             // -- wifi password prompt ------------------------------------------
             Item {
-                y: 15 * Theme.cellH
+                y: 17 * Theme.cellH
                 width: parent.width
                 height: Theme.cellH
                 visible: root.pendingNetwork !== null

@@ -1,6 +1,7 @@
 pragma Singleton
 
 import Quickshell
+import Quickshell.Io
 import QtQuick
 import qs
 import qs.services
@@ -9,10 +10,67 @@ import qs.services
 //   plain text  -> applications (fuzzy match)
 //   :command    -> commands, e.g. ":ws 3" or ":set bar.gap 12"
 // A result is { title, desc, insert, run }. run() returns { close, message }.
+//
+// Users can drop executable scripts into ~/.config/vibeshell/commands (or
+// $VIBESHELL_CONFIG_DIR/commands). They show up as :name; a line reading
+// "# desc: something" gives the entry its description.
 Singleton {
     id: root
 
     readonly property int maxResults: 10
+
+    // -- user command plugins ------------------------------------------------
+    property string pluginDir: Settings.userDir + "/commands"
+    property var plugins: []
+
+    readonly property var pluginCommands: plugins.map(p => ({
+            name: p.name,
+            usage: "[args]",
+            desc: p.desc,
+            run: args => {
+                Quickshell.execDetached([p.path].concat(args));
+                return {
+                    close: true
+                };
+            }
+        }))
+
+    function scanPlugins() {
+        if (!scan.running)
+            scan.running = true;
+    }
+
+    Process {
+        id: scan
+        command: ["sh", "-c", `d="$1"; [ -d "$d" ] || exit 0; for f in "$d"/*; do [ -f "$f" ] && [ -x "$f" ] || continue; desc=$(sed -n 's/^# desc: //p' "$f" | head -n1); printf '%s\\t%s\\n' "$(basename "$f")" "$desc"; done`, "vibeshell", root.pluginDir]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = [];
+                for (const line of text.split("\n")) {
+                    if (line === "")
+                        continue;
+                    const parts = line.split("\t");
+                    const file = parts[0];
+                    if (!file)
+                        continue;
+                    out.push({
+                        name: file.replace(/\.sh$/, ""),
+                        path: root.pluginDir + "/" + file,
+                        desc: parts[1] || "user command"
+                    });
+                }
+                root.plugins = out;
+            }
+        }
+    }
+
+    Timer {
+        interval: 5000
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: root.scanPlugins()
+    }
 
     // Lower is better, -1 means no match.
     function score(text, query) {
@@ -46,7 +104,7 @@ Singleton {
             entry.execute();
     }
 
-    readonly property var commands: [
+    readonly property var builtin: [
         {
             name: "ws",
             usage: "<n>",
@@ -116,12 +174,70 @@ Singleton {
         },
         {
             name: "notify",
-            usage: "",
-            desc: "dismiss all notifications",
-            run: () => {
-                Notifications.clear();
+            usage: "[dnd|history|clear]",
+            desc: "notifications: dismiss, do-not-disturb, history",
+            run: args => {
+                const a = args[0];
+                if (a === "dnd") {
+                    Notifications.toggleDnd();
+                    return {
+                        close: false,
+                        message: `do-not-disturb ${Settings.data.notify.dnd ? "on" : "off"}`
+                    };
+                }
+                if (a === "clear") {
+                    Notifications.clear();
+                    return {
+                        close: false,
+                        message: "notifications dismissed"
+                    };
+                }
+                if (a === "history" || a === "hist") {
+                    const h = Notifications.history.slice().reverse();
+                    if (h.length === 0)
+                        return {
+                            close: false,
+                            message: "notification history is empty"
+                        };
+                    return {
+                        close: false,
+                        title: "history",
+                        list: h.map(n => ({
+                                title: n.summary || "(no summary)",
+                                desc: `${n.app || "?"} · ${ago(n.time)}`.trim(),
+                                run: () => ({
+                                    close: true
+                                })
+                            }))
+                    };
+                }
+                const h = Notifications.history.slice().reverse();
                 return {
-                    close: true
+                    close: false,
+                    title: "notifications",
+                    list: [
+                        {
+                            title: "dismiss all",
+                            desc: `${Notifications.all.length} on screen`,
+                            run: () => {
+                                Notifications.clear();
+                                return { close: true };
+                            }
+                        },
+                        {
+                            title: Notifications.dnd ? "turn off do-not-disturb" : "do not disturb",
+                            desc: "suppress popups (history still kept)",
+                            run: () => {
+                                Notifications.toggleDnd();
+                                return { close: true };
+                            }
+                        },
+                        {
+                            title: "history",
+                            desc: `${h.length} recent`,
+                            run: () => root.byName("notify").run(["history"])
+                        }
+                    ]
                 };
             }
         },
@@ -293,65 +409,142 @@ Singleton {
         },
         {
             name: "power",
-            usage: "",
-            desc: "power menu: lock suspend logout reboot shutdown",
-            run: () => ({
-                close: false,
-                title: "power",
-                list: [
-                    {
-                        title: "lock",
-                        desc: "lock the screen",
-                        run: () => {
-                            Lock.lock();
-                            return { close: true };
-                        }
-                    },
-                    {
-                        title: "suspend",
-                        desc: "lock, then suspend to RAM",
-                        run: () => {
-                            Power.suspend();
-                            return { close: true };
-                        }
-                    },
-                    {
-                        title: "logout",
-                        desc: "end the niri session",
-                        run: () => {
-                            Power.logout();
-                            return { close: true };
-                        }
-                    },
-                    {
-                        title: "reboot",
-                        desc: "restart the machine",
-                        run: () => {
-                            Power.reboot();
-                            return { close: true };
-                        }
-                    },
-                    {
-                        title: "shutdown",
-                        desc: "power the machine off",
-                        run: () => {
-                            Power.shutdown();
-                            return { close: true };
-                        }
+            usage: "[profile [name]]",
+            desc: "power menu (lock/suspend/...) and CPU profiles",
+            run: args => {
+                if (args[0] === "profile" || args[0] === "pp") {
+                    if (!PowerProfiles.available)
+                        return {
+                            close: false,
+                            message: "power profiles need power-profiles-daemon"
+                        };
+                    if (args[1]) {
+                        PowerProfiles.set(args[1]);
+                        return {
+                            close: false,
+                            message: `power profile: ${args[1]}`
+                        };
                     }
-                ]
-            })
+                    return {
+                        close: false,
+                        title: "power profile",
+                        list: PowerProfiles.profiles.map(p => ({
+                                title: p,
+                                desc: p === PowerProfiles.active ? "active" : "",
+                                run: () => {
+                                    PowerProfiles.set(p);
+                                    return {
+                                        close: true,
+                                        message: `power profile: ${p}`
+                                    };
+                                }
+                            }))
+                    };
+                }
+                return {
+                    close: false,
+                    title: "power",
+                    list: [
+                        {
+                            title: "lock",
+                            desc: "lock the screen",
+                            run: () => {
+                                Lock.lock();
+                                return { close: true };
+                            }
+                        },
+                        {
+                            title: "suspend",
+                            desc: "lock, then suspend to RAM",
+                            run: () => {
+                                Power.suspend();
+                                return { close: true };
+                            }
+                        },
+                        {
+                            title: "logout",
+                            desc: "end the niri session",
+                            run: () => {
+                                Power.logout();
+                                return { close: true };
+                            }
+                        },
+                        {
+                            title: "reboot",
+                            desc: "restart the machine",
+                            run: () => {
+                                Power.reboot();
+                                return { close: true };
+                            }
+                        },
+                        {
+                            title: "shutdown",
+                            desc: "power the machine off",
+                            run: () => {
+                                Power.shutdown();
+                                return { close: true };
+                            }
+                        }
+                    ]
+                };
+            }
+        },
+        {
+            name: "night",
+            usage: "[on|off|warmer|cooler|<kelvin>]",
+            desc: "night light (warmer screen colours)",
+            run: args => {
+                if (!NightLight.available)
+                    return {
+                        close: false,
+                        message: "night light needs gammastep, redshift or wlsunset"
+                    };
+                const a = args[0];
+                if (a === undefined)
+                    NightLight.toggle();
+                else if (a === "on")
+                    NightLight.set(true);
+                else if (a === "off")
+                    NightLight.set(false);
+                else if (a === "warmer" || a === "+")
+                    NightLight.adjust(-250);
+                else if (a === "cooler" || a === "-")
+                    NightLight.adjust(250);
+                else if (/^\d+$/.test(a))
+                    NightLight.setTemperature(Number(a));
+                else
+                    return {
+                        close: false,
+                        message: "usage: :night [on|off|warmer|cooler|<kelvin>]"
+                    };
+                return {
+                    close: false,
+                    message: `night light ${NightLight.enabled ? "on" : "off"} @ ${NightLight.temperature}K`
+                };
+            }
+        },
+        {
+            name: "keys",
+            usage: "",
+            desc: "keybind cheatsheet",
+            run: () => {
+                Ui.toggleKeys();
+                return {
+                    close: true
+                };
+            }
         },
         {
             name: "shot",
-            usage: "[full|region]",
+            usage: "[full|region|edit|region-edit]",
             desc: "screenshot to ~/Pictures/Screenshots and the clipboard",
             run: args => {
+                const modes = ["full", "region", "edit", "region-edit"];
                 if (args.length > 0) {
-                    if (args[0] !== "full" && args[0] !== "region")
+                    if (!modes.includes(args[0]))
                         return {
                             close: false,
-                            message: "usage: :shot [full|region]"
+                            message: `usage: :shot <${modes.join("|")}>`
                         };
                     return Screenshot.capture(args[0]);
                 }
@@ -360,21 +553,34 @@ Singleton {
                         close: false,
                         message: "screenshot needs grim (and slurp for region)"
                     };
+                const list = [
+                    {
+                        title: "full",
+                        desc: "the whole screen",
+                        run: () => Screenshot.capture("full")
+                    },
+                    {
+                        title: "region",
+                        desc: "drag to select an area",
+                        run: () => Screenshot.capture("region")
+                    }
+                ];
+                if (Screenshot.canAnnotate) {
+                    list.push({
+                        title: "edit",
+                        desc: "full screen, then annotate (swappy)",
+                        run: () => Screenshot.capture("edit")
+                    });
+                    list.push({
+                        title: "region-edit",
+                        desc: "select an area, then annotate (swappy)",
+                        run: () => Screenshot.capture("region-edit")
+                    });
+                }
                 return {
                     close: false,
                     title: "screenshot",
-                    list: [
-                        {
-                            title: "full",
-                            desc: "the whole screen",
-                            run: () => Screenshot.capture("full")
-                        },
-                        {
-                            title: "region",
-                            desc: "drag to select an area",
-                            run: () => Screenshot.capture("region")
-                        }
-                    ]
+                    list: list
                 };
             }
         },
@@ -464,6 +670,25 @@ Singleton {
             }
         }
     ]
+
+    // Built-in commands plus any user plugins, in that order.
+    readonly property var commands: builtin.concat(pluginCommands)
+
+    function byName(name) {
+        return commands.find(c => c.name === name) ?? null;
+    }
+
+    // Short relative time ("3m", "2h", "4d") for the notification history.
+    function ago(ms) {
+        const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+        if (s < 60)
+            return `${s}s ago`;
+        if (s < 3600)
+            return `${Math.round(s / 60)}m ago`;
+        if (s < 86400)
+            return `${Math.round(s / 3600)}h ago`;
+        return `${Math.round(s / 86400)}d ago`;
+    }
 
     function searchCommands(rest) {
         const parts = rest.trim().split(/\s+/).filter(s => s.length > 0);

@@ -4,9 +4,11 @@ A custom, terminal-flavoured desktop shell for [niri](https://github.com/YaLTeR/
 
 > Work in progress. A monochrome-by-default, TUI-flavoured shell with a floating
 > top bar, a vim-style command palette, a dashboard, quick settings, a settings
-> window, a notification daemon, a lock screen (idle + lid), an optional
-> greetd greeter / SDDM login theme, app theming (kitty, GTK, VS Code, spicetify),
-> switchable colour palettes, wallpaper control, tiling presets, a global UI scale
+> window, a notification daemon (with do-not-disturb and history), a lock screen
+> (idle + lid), an optional greetd greeter / SDDM login theme, app theming
+> (kitty, GTK, VS Code, spicetify), switchable colour palettes, wallpaper control,
+> tiling presets, screenshots, clipboard history, an emoji picker, night light,
+> power profiles, a keybind cheatsheet, user command plugins, a global UI scale
 > and optional matugen colour sync.
 
 ## Preview
@@ -124,9 +126,13 @@ flags work with the one-liner, e.g.:
 curl -fsSL https://raw.githubusercontent.com/funnitzee/VibeShell/main/install.sh | bash -s -- --niri --apps --super-tap
 ```
 
-The installer asks before running `sudo pacman`, backs up every file it overwrites
-(`<file>.bak.<timestamp>`), and can be re-run safely. Without `--niri` it only
-writes `~/.config/niri/vibeshell.kdl` and tells you which `include` line to add.
+Run `bash install.sh` with no flags for the guided installer: it walks you through
+picking a profile (`minimal`, `balanced` adds the optional tools, or `full` also sets
+up a login manager), shows a summary, and only then touches your system. It asks before
+running `sudo pacman`, backs up every file it overwrites (`<file>.bak.<timestamp>`), and
+can be re-run safely. Without `--niri` it only writes `~/.config/niri/vibeshell.kdl` and
+tells you which `include` line to add. It also installs the `vibeshell` CLI to
+`~/.local/bin` and creates `~/.config/vibeshell/commands/` with an example plugin.
 
 The full flag list:
 
@@ -148,7 +154,9 @@ The base `pacman` step installs everything the shell talks to:
 and `matugen` (colour sync). The display managers/aids are only pulled in by their
 flags: `sddm` (`--sddm`), `greetd` (`--greeter`) and `keyd` (`--super-tap`).
 Installing a package does not start its daemon, so the installer prints a hint if
-`NetworkManager`, `bluetooth` or `upower` are not running.
+`NetworkManager`, `bluetooth` or `upower` are not running. The `balanced`/`full`
+profiles add the optional tools the shell can use: `grim`, `slurp`, `wl-clipboard`,
+`cliphist`, `libnotify`, `gammastep`, `power-profiles-daemon` and `swappy`.
 
 When writing `vibeshell.kdl`, the installer skips any bind whose key is already
 bound elsewhere in your niri config (dms, `config.kdl`, ...), because niri refuses
@@ -222,7 +230,13 @@ Press `Mod+;` (bound by the installer's niri snippet). Type to search applicatio
 | `:dash` | open the dashboard |
 | `:qs` | open the quick settings panel |
 | `:settings` | open the settings window |
-| `:notify` | dismiss all notifications |
+| `:notify [dnd\|history\|clear]` | dismiss all, toggle do-not-disturb, or browse history |
+| `:power [profile [name]]` | lock/suspend/logout/reboot/shutdown, or pick a CPU profile |
+| `:night [on\|off\|warmer\|cooler\|<kelvin>]` | night light (warmer screen colours) |
+| `:shot [full\|region\|edit\|region-edit]` | screenshot to `~/Pictures/Screenshots` + clipboard (`edit` opens swappy) |
+| `:clip [clear]` | clipboard history (needs `cliphist`) |
+| `:emoji` | emoji picker (copies to the clipboard) |
+| `:keys` | keybind cheatsheet overlay |
 | `:lock` | lock the screen |
 | `:theming` | regenerate app theme files under `app-themes/` |
 | `:theme [name\|next]` | switch colour palette (`next` cycles) |
@@ -232,6 +246,12 @@ Press `Mod+;` (bound by the installer's niri snippet). Type to search applicatio
 | `:anim` | toggle shell animations |
 | `:matugen` | sync app colours from the accent via matugen |
 | `:scale <n>` | set the UI scale, e.g. `:scale 1.25` |
+| `:help` | list every command |
+
+`:night` needs `gammastep` (or `redshift`/`wlsunset`), `:power profile` needs
+`power-profiles-daemon`, and `:clip` needs `cliphist` + `wl-clipboard` — all optional.
+Commands that return a list (clipboard, emoji, power, help, ...) open the palette in
+list mode: type to filter, `Enter` selects, `Esc` goes back.
 
 `Enter` runs, `Tab` completes, `Up`/`Down` (or `Ctrl+P`/`Ctrl+N`) move, `Esc` closes.
 It can also be driven from a script: `quickshell ipc -p <shell dir> call palette open ":"`
@@ -257,7 +277,9 @@ types a value, `Esc`/`q` closes.
   "apps": { "terminal": "kitty" },
   "theming": { "kitty": true, "gtk": true, "vscode": true, "spicetify": true, "sddm": true, "matugen": true },
   "stats": { "interval": 2000 },
-  "notify": { "timeout": 5, "max": 4 },
+  "notify": { "timeout": 5, "max": 4, "dnd": false, "historyMax": 50 },
+  "night": { "enabled": false, "temperature": 4500 },
+  "power": { "lowThreshold": 15 },
   "lock": { "service": "login" },
   "idle": { "lock": 300, "screenOff": 600 },
   "bar": { "height": 34, "gap": 8, "radius": 10, "borderWidth": 1 }
@@ -278,6 +300,63 @@ dismissed, the rest time out (`notify.timeout` seconds, or the app's own timeout
 at most `notify.max` are shown at once. Click a card to dismiss it, or run `:notify`
 (or `... call notify clear`) to clear the stack. Test it with `notify-send "hi"`.
 
+Do Not Disturb (`:notify dnd`, or `... call notify dnd`) hides the popups while still
+recording a rolling history (`notify.historyMax` entries); browse it with
+`:notify history`. The state persists in `notify.dnd`.
+
+## Night light & power profiles
+
+Two optional, panel-friendly extras that show up in quick settings (`Mod+S`) and the
+bar when their tools are installed:
+
+- **Night light** (`:night`): warmer screen colours via `gammastep`, `redshift` or
+  `wlsunset`. `:night on`/`off` toggles it, `:night warmer`/`cooler` nudges the
+  temperature, `:night 3500` sets it directly. State lives in `night.enabled` /
+  `night.temperature` and is restored on startup.
+- **Power profiles** (`:power profile`, or `:power profile performance`):
+  `power-profiles-daemon`'s `power-saver` / `balanced` / `performance` from
+  `powerprofilesctl`. The quick settings row cycles them with `Enter`/`h`/`l`.
+
+## CLI and user scripts
+
+Every running shell can be driven from a terminal through the `vibeshell` wrapper
+(installed to `~/.local/bin/vibeshell` by `install.sh`, or `/usr/bin/vibeshell` from
+the AUR package):
+
+```sh
+vibeshell theme tokyo-night     # :theme tokyo-night
+vibeshell toggle quick          # open quick settings
+vibeshell shot region           # screenshot a region
+vibeshell run ":night on"       # any palette command
+vibeshell doctor                # check which optional tools are present
+```
+
+Drop any executable script into `~/.config/vibeshell/commands/` and it shows up in the
+palette as `:name` (a `# desc: ...` line sets its description). It runs detached with
+whatever arguments you type after it.
+
+```sh
+cat > ~/.config/vibeshell/commands/notes.sh <<'EOF'
+#!/usr/bin/env bash
+# desc: open my notes
+kitty -e nvim ~/notes.md
+EOF
+chmod +x ~/.config/vibeshell/commands/notes.sh   # then :notes
+```
+
+## Install from the AUR
+
+`packaging/` holds a `vibeshell-git` PKGBUILD for a system-wide install (shell in
+`/usr/share/vibeshell`, the `vibeshell` CLI in `/usr/bin`):
+
+```sh
+cd packaging && makepkg -si
+```
+
+The guided `install.sh` remains the recommended path — it also wires niri, app theming
+and the greeter. Submitting the PKGBUILD to the AUR only needs a fresh
+`makepkg --printsrcinfo > .SRCINFO`.
+
 ## Development
 
 `dev/run-nested.sh` runs the shell in a nested niri window with every XDG directory
@@ -296,19 +375,22 @@ sandbox — locking the nested niri disables screenshots and asks your real PAM.
 
 ```
 install.sh   Installer
+bin/         vibeshell CLI wrapper
 shell/       Quickshell config (entry point: shell/shell.qml)
   bar/       Bar and its modules
   dashboard/ Dashboard: clock, calendar, system panel, now playing
-  quick/     Quick settings: volume, Wi-Fi, Bluetooth, brightness
+  quick/     Quick settings: volume, Wi-Fi, Bluetooth, brightness, night light, power profiles
   settings/  Settings window: edit and save any setting in place
+  keys/      Keybind cheatsheet overlay
   notify/    Notification popups (TUI cards)
   osd/       On-screen display (volume)
   palette/   Command palette (UI and command backend)
   components/ Reusable pieces: TuiFrame, Spark, Gauge, Txt, BigClock, Eq
-  services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications, wallpaper, app theming
+  services/  Singletons: niri, media, audio, network, bluetooth, brightness, power, stats, notifications, wallpaper, screenshot, clipboard, night light, power profiles, app theming
   palettes/  Color palettes
   defaults/  Shipped default settings
 sddm/        SDDM login theme (installed with --sddm)
+packaging/   AUR PKGBUILD (vibeshell-git)
 dev/         Nested niri sandbox and screenshot generator
 docs/        Screenshots used in this README
 ```
@@ -335,3 +417,14 @@ docs/        Screenshots used in this README
 - [x] Super-tap palette via keyd (`--super-tap`)
 - [x] Lock on lid close
 - [x] Optional matugen colour sync (`theming.matugen`)
+- [x] Screenshots (`:shot`, grim/slurp) and optional swappy annotation
+- [x] Clipboard history (`:clip`, cliphist)
+- [x] Emoji picker (`:emoji`)
+- [x] Night light (`:night`, gammastep/redshift/wlsunset)
+- [x] Power profiles (`:power profile`, power-profiles-daemon)
+- [x] Do-not-disturb and notification history (`:notify`)
+- [x] Battery-low notification
+- [x] Keybind cheatsheet overlay (`:keys`)
+- [x] User command plugins (`~/.config/vibeshell/commands/`)
+- [x] `vibeshell` CLI wrapper
+- [x] AUR `PKGBUILD` (`packaging/`, vibeshell-git)

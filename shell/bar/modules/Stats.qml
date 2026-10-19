@@ -65,5 +65,32 @@ Item {
                 font.bold: !Power.charging && Power.percent <= 15
             }
         }
+
+        Row {
+            visible: PowerProfiles.available && PowerProfiles.active !== ""
+            spacing: Theme.cellW
+
+            Txt {
+                text: "pp"
+                color: Theme.dim
+            }
+            Txt {
+                text: PowerProfiles.label()
+                color: PowerProfiles.active === "performance" ? Theme.accent : Theme.fg
+            }
+        }
+
+        Row {
+            visible: NightLight.enabled
+            spacing: Theme.cellW
+
+            Txt {
+                text: "nl"
+                color: Theme.dim
+            }
+            Txt {
+                text: `${NightLight.temperature}K`
+            }
+        }
     }
 }

@@ -8,11 +8,13 @@ Singleton {
     property bool dashboardOpen: false
     property bool quickOpen: false
     property bool settingsOpen: false
+    property bool keysOpen: false
 
     function closeAll() {
         dashboardOpen = false;
         quickOpen = false;
         settingsOpen = false;
+        keysOpen = false;
     }
 
     function open() {
@@ -52,5 +54,18 @@ Singleton {
         const next = !settingsOpen;
         closeAll();
         settingsOpen = next;
+    }
+
+    function openKeys() {
+        closeAll();
+        keysOpen = true;
+    }
+    function closeKeys() {
+        keysOpen = false;
+    }
+    function toggleKeys() {
+        const next = !keysOpen;
+        closeAll();
+        keysOpen = next;
     }
 }

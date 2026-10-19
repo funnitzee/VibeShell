@@ -32,7 +32,16 @@
   },
   "notify": {
     "timeout": 5,
-    "max": 4
+    "max": 4,
+    "dnd": false,
+    "historyMax": 50
+  },
+  "night": {
+    "enabled": false,
+    "temperature": 4500
+  },
+  "power": {
+    "lowThreshold": 15
   },
   "lock": {
     "service": "login"

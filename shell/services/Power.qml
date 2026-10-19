@@ -3,6 +3,7 @@ pragma Singleton
 import Quickshell
 import Quickshell.Services.UPower
 import QtQuick
+import qs
 
 // Laptop battery from UPower's aggregate device (percentage is 0-1 there).
 Singleton {
@@ -15,6 +16,23 @@ Singleton {
     readonly property bool full: device.state === UPowerDeviceState.FullyCharged
 
     readonly property string stateLabel: charging ? "charging" : full ? "full" : "on battery"
+
+    // Warn once per discharge when dropping below power.lowThreshold (0 = off).
+    property bool _lowWarned: false
+
+    onPercentChanged: root.checkBattery()
+
+    function checkBattery() {
+        const th = Settings.data.power.lowThreshold;
+        if (!present || th <= 0)
+            return;
+        if (!charging && !full && percent <= th && !_lowWarned) {
+            _lowWarned = true;
+            Quickshell.execDetached(["notify-send", "-a", "vibeshell", "-u", "critical", "battery low", `battery at ${percent}%`]);
+        } else if (charging || full || percent > th + 3) {
+            _lowWarned = false;
+        }
+    }
 
     // Session / machine actions for the :power menu. Everything goes through
     // systemd/logind, so no polkit prompt for the usual desktop actions.
