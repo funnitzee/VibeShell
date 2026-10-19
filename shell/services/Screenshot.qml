@@ -88,6 +88,18 @@ Singleton {
         Quickshell.execDetached(["notify-send", "-a", "vibeshell", summary, body]);
     }
 
+    // Screenshot keys (Print / Shift+Print) call these via the installer's binds.
+    IpcHandler {
+        target: "shot"
+
+        function full(): void {
+            root.capture("full");
+        }
+        function region(): void {
+            root.capture("region");
+        }
+    }
+
     Component.onCompleted: probe.running = true
 
     Process {

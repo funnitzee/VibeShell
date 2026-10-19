@@ -236,6 +236,7 @@ Scope {
         // Room for the header, every setting row and the hint line.
         readonly property int rows: root.rowCount + 6
 
+        screen: Niri.focusedScreen
         visible: Ui.settingsOpen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore

@@ -42,6 +42,7 @@ Scope {
     PanelWindow {
         id: win
 
+        screen: Niri.focusedScreen
         visible: hideTimer.running
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore

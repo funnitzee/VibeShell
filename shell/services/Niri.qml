@@ -45,6 +45,25 @@ Singleton {
             focusedQuery.running = true;
     }
 
+    // Name of the output that currently has keyboard focus, and the matching
+    // ShellScreen. Popups use this so they open on the monitor you are on.
+    property string focusedOutput: ""
+
+    function refreshFocusedOutput() {
+        if (!focusedOutputQuery.running)
+            focusedOutputQuery.running = true;
+    }
+
+    readonly property var focusedScreen: {
+        const list = Quickshell.screens;
+        for (let i = 0; i < list.length; i++)
+            if (list[i].name === root.focusedOutput)
+                return list[i];
+        return list.length > 0 ? list[0] : null;
+    }
+
+    Component.onCompleted: refreshFocusedOutput()
+
     property bool _pending: false
 
     function refresh() {
@@ -64,6 +83,9 @@ Singleton {
                     root.refresh();
                 else if (data.includes("WindowFocusChanged"))
                     root.refreshWindowTitle();
+                if (data.includes("WorkspaceActivated") || data.includes("WindowFocusChanged")
+                    || data.includes("Output"))
+                    root.refreshFocusedOutput();
             }
         }
         // niri restarted or not running yet: try again shortly.
@@ -106,6 +128,21 @@ Singleton {
                     root.windowTitle = w && w.title ? w.title : "";
                 } catch (e) {
                     root.windowTitle = "";
+                }
+            }
+        }
+    }
+
+    Process {
+        id: focusedOutputQuery
+        command: ["niri", "msg", "--json", "focused-output"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const o = JSON.parse(text);
+                    root.focusedOutput = o && o.name ? o.name : "";
+                } catch (e) {
+                    root.focusedOutput = "";
                 }
             }
         }

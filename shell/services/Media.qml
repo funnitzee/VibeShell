@@ -1,6 +1,7 @@
 pragma Singleton
 
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Mpris
 import QtQuick
 
@@ -42,6 +43,22 @@ Singleton {
     function format(seconds) {
         const s = Math.max(0, Math.floor(seconds));
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    }
+
+    // Media keys go through here (see the installer's vibeshell.kdl) so they hit
+    // the same player the bar shows, not whatever playerctl picks first.
+    IpcHandler {
+        target: "media"
+
+        function toggle(): void {
+            root.toggle();
+        }
+        function next(): void {
+            root.next();
+        }
+        function previous(): void {
+            root.previous();
+        }
     }
 
     // `position` does not update on its own, so poke it every second while playing.

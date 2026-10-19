@@ -21,7 +21,10 @@ Scope {
                 ["Mod+S", "quick settings"],
                 ["Mod+Shift+S", "settings window"],
                 ["Mod+/", "keybinds (this)"],
-                ["Mod+Alt+L", "lock the screen"]
+                ["Mod+Alt+L", "lock the screen"],
+                ["XF86Audio*", "media play/pause, next, previous"],
+                ["XF86MonBrightness*", "brightness down/up"],
+                ["Print / Shift+Print", "screenshot / region"]
             ]
         },
         {

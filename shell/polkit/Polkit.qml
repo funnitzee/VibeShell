@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import QtQuick
 import qs
 import qs.components
+import qs.services
 
 // Polkit authentication agent. Shows a small TUI prompt whenever a privileged
 // action (mounting a disk, managing a system service, ...) asks for
@@ -44,6 +45,7 @@ Scope {
     PanelWindow {
         id: win
 
+        screen: Niri.focusedScreen
         visible: root.active
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore

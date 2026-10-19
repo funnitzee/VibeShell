@@ -175,6 +175,7 @@ Scope {
         readonly property int cols: 54
         readonly property int rows: 21
 
+        screen: Niri.focusedScreen
         visible: Ui.quickOpen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore

@@ -296,6 +296,12 @@ else
     echo "  skip  tray (python-dbus / python-gobject not installed)"
 fi
 
+echo "media"
+for fn in toggle next previous; do
+    out=$(call media "$fn" 2>&1)
+    [[ -z "$out" ]] && ok "media ipc $fn" || bad "media ipc $fn" "unexpected: $out"
+done
+
 echo "panels"
 for p in quick settings keys dashboard; do    out=$(call "$p" open)
     [[ -z "$out" ]] && ok "open $p" || bad "open $p" "unexpected: $out"

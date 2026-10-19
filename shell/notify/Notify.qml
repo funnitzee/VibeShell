@@ -29,6 +29,7 @@ Scope {
     PanelWindow {
         id: win
 
+        screen: Niri.focusedScreen
         visible: Notifications.popup.length > 0
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore

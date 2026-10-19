@@ -44,6 +44,13 @@ Notifications: VibeShell is the notification daemon, and popups are TUI cards wi
 
 ![Notifications](docs/screenshots/notify.png)
 
+## Multiple monitors
+
+The bar is one floating panel per screen (same workspace/stats split on each). The
+popups — palette, dashboard, quick settings, settings, keybind cheatsheet, OSD,
+notifications and the polkit prompt — follow the monitor that currently has keyboard
+focus, so they open where you are working instead of always on the first output.
+
 ## Lock screen & idle
 
 - Lock: `Mod+Alt+L`, `:lock`, or `quickshell ipc -p <shell> call lock lock`
@@ -133,8 +140,9 @@ curl -fsSL https://raw.githubusercontent.com/funnitzee/VibeShell/main/install.sh
 ```
 
 Run `bash install.sh` with no flags for the guided installer: it walks you through
-picking a profile (`minimal`, `balanced` adds the optional tools, or `full` also sets
-up a login manager), shows a summary, and only then touches your system. It asks before
+picking a profile (`minimal`, `balanced` adds the optional tools, or `full` which also
+asks whether to set up a login manager), shows a summary, and only then touches your
+system. It asks before
 running `sudo pacman`, backs up every file it overwrites (`<file>.bak.<timestamp>`), and
 can be re-run safely. Without `--niri` it only writes `~/.config/niri/vibeshell.kdl` and
 tells you which `include` line to add. It also installs the `vibeshell` CLI to
@@ -165,9 +173,13 @@ Installing a package does not start its daemon, so the installer prints a hint i
 profiles add the optional tools the shell can use: `grim`, `slurp`, `wl-clipboard`,
 `cliphist`, `libnotify`, `gammastep`, `power-profiles-daemon` and `swappy`.
 
-When writing `vibeshell.kdl`, the installer skips any bind whose key is already
-bound elsewhere in your niri config (dms, `config.kdl`, ...), because niri refuses
-to load a config with duplicate keybinds.
+When writing `vibeshell.kdl`, the installer writes the shell's own keybinds:
+`Mod+;` palette, `Mod+P` dashboard, `Mod+S` quick settings, `Mod+Shift+S` settings,
+`Mod+Alt+L` lock, `Mod+/` keybind cheatsheet and `Mod+Return` terminal, the volume
+keys (`wpctl`) and brightness keys (IPC), the media keys (`XF86AudioPlay`/`Next`/
+`Prev`) and `Print`/`Shift+Print` for a full or region screenshot. It skips any bind
+whose key is already bound elsewhere in your niri config (dms, `config.kdl`, ...),
+because niri refuses to load a config with duplicate keybinds.
 
 Try it without restarting niri: `quickshell -p ~/.local/share/vibeshell/shell`
 
@@ -411,7 +423,7 @@ palette
   ok    :help lists commands
   ok    :calc adds
   ...
-passed 29, failed 0
+passed 37, failed 0
 ```
 
 CI runs the same script on every push and pull request

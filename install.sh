@@ -11,9 +11,9 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Base minimal packages
 BASE_PKGS=(git niri quickshell ttf-jetbrains-mono-nerd kitty brightnessctl swaybg wireplumber networkmanager bluez upower matugen)
 BALANCED_PKGS=(grim slurp wl-clipboard cliphist libnotify gammastep power-profiles-daemon swappy)
-# The shell ships its own polkit agent, so a login manager / keyd aid is enough
-# here - no separate agent package (they would just fight over the subject).
-FULL_PKGS=(sddm greetd keyd)
+# Note: display managers and keyd are only installed when their flag is used
+# (--sddm / --greeter / --super-tap), never just because a profile was picked.
+# The shell ships its own polkit agent, so no separate agent package is needed.
 
 ASSUME_YES=0
 DRY_RUN=0
@@ -153,7 +153,7 @@ if [[ $PROFILE == "guided" ]]; then
       PATCH_NIRI=1; PATCH_APPS=1; INSTALL_SDDM=0; INSTALL_GREETER=0; SUPER_TAP=0
       echo "Login method:"
       PS3="Choose: "
-      select lm in "Keep current DM (install SDDM theme only)" "Switch to greetd + VibeShell greeter" skip; do
+      select lm in "Install SDDM and its VibeShell theme" "Switch to greetd + VibeShell greeter" skip; do
         case $lm in
           *SDDM*) INSTALL_SDDM=1; INSTALL_GREETER=0; break ;;
           *greetd*) INSTALL_GREETER=1; INSTALL_SDDM=0; break ;;
@@ -171,9 +171,6 @@ PKGS=("${BASE_PKGS[@]}")
 case $PROFILE in
   balanced|full) PKGS+=("${BALANCED_PKGS[@]}") ;;
   custom) : ;;
-esac
-case $PROFILE in
-  full) PKGS+=("${FULL_PKGS[@]}") ;;
 esac
 
 # custom checkboxes simple
@@ -287,6 +284,11 @@ EOF
   add_bind "XF86AudioRaiseVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }'
   add_bind "XF86AudioLowerVolume" 'allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }'
   add_bind "XF86AudioMute" 'allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }'
+  add_bind "XF86AudioPlay" "allow-when-locked=true { $ipc \"media\" \"toggle\"; }"
+  add_bind "XF86AudioNext" "allow-when-locked=true { $ipc \"media\" \"next\"; }"
+  add_bind "XF86AudioPrev" "allow-when-locked=true { $ipc \"media\" \"previous\"; }"
+  add_bind "Print" "hotkey-overlay-title=\"Screenshot\" { $ipc \"shot\" \"full\"; }"
+  add_bind "Shift+Print" "hotkey-overlay-title=\"Screenshot region\" { $ipc \"shot\" \"region\"; }"
   add_bind "XF86MonBrightnessUp" "allow-when-locked=true { $ipc \"brightness\" \"up\"; }"
   add_bind "XF86MonBrightnessDown" "allow-when-locked=true { $ipc \"brightness\" \"down\"; }"
   cat <<EOF

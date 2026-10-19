@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import QtQuick
 import qs
 import qs.components
+import qs.services
 
 // Vim-style command palette: plain text launches apps, ":" starts a command.
 // Open it with `quickshell ipc -p <shell> call palette toggle` (bound to Mod+; by the installer).
@@ -122,6 +123,7 @@ Scope {
                 root.open = false;
         }
 
+        screen: Niri.focusedScreen
         visible: root.open
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
